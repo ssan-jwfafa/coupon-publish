@@ -37,8 +37,7 @@ src/main/java/com/example/couponpublish
     │   ├── CouponConfig.java
     │   └── CouponProperties.java
     ├── controller
-    │   ├── CouponController.java
-    │   └── GlobalExceptionHandler.java
+    │   └── CouponController.java
     ├── dto
     │   ├── CouponIssueRequest.java
     │   ├── CouponIssueResponse.java
@@ -48,7 +47,8 @@ src/main/java/com/example/couponpublish
     │   ├── CouponIssue.java
     │   └── CouponStatus.java
     ├── exception
-    │   └── CouponException.java
+    │   ├── CouponException.java
+    │   └── GlobalExceptionHandler.java
     ├── repository
     │   ├── CouponIssueRepository.java
     │   └── CouponRedisRepository.java
