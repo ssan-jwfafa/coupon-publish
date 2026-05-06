@@ -1,6 +1,7 @@
-package com.example.couponpublish.coupon.api;
+package com.example.couponpublish.coupon.controller;
 
-import com.example.couponpublish.coupon.application.CouponException;
+import com.example.couponpublish.coupon.dto.ErrorResponse;
+import com.example.couponpublish.coupon.exception.CouponException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;

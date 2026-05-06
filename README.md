@@ -33,26 +33,28 @@ Spring Boot, Gradle, MySQL, Redis를 사용한 쿠폰 발급 프로젝트입니�
 src/main/java/com/example/couponpublish
 ├── CouponPublishApplication.java
 └── coupon
-    ├── api
-    │   ├── CouponController.java
-    │   ├── CouponIssueRequest.java
-    │   ├── CouponIssueResponse.java
-    │   ├── CouponRemainingResponse.java
-    │   ├── ErrorResponse.java
-    │   └── GlobalExceptionHandler.java
-    ├── application
-    │   ├── CouponException.java
-    │   ├── CouponRedisInitializer.java
-    │   └── CouponService.java
     ├── config
     │   ├── CouponConfig.java
     │   └── CouponProperties.java
-    ├── domain
+    ├── controller
+    │   ├── CouponController.java
+    │   └── GlobalExceptionHandler.java
+    ├── dto
+    │   ├── CouponIssueRequest.java
+    │   ├── CouponIssueResponse.java
+    │   ├── CouponRemainingResponse.java
+    │   └── ErrorResponse.java
+    ├── entity
     │   ├── CouponIssue.java
-    │   ├── CouponIssueRepository.java
     │   └── CouponStatus.java
-    └── infra
-        └── CouponRedisRepository.java
+    ├── exception
+    │   └── CouponException.java
+    ├── repository
+    │   ├── CouponIssueRepository.java
+    │   └── CouponRedisRepository.java
+    └── service
+        ├── CouponRedisInitializer.java
+        └── CouponService.java
 ```
 
 ## 동시성 처리 방식

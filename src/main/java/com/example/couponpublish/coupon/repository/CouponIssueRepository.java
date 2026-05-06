@@ -1,5 +1,7 @@
-package com.example.couponpublish.coupon.domain;
+package com.example.couponpublish.coupon.repository;
 
+import com.example.couponpublish.coupon.entity.CouponIssue;
+import com.example.couponpublish.coupon.entity.CouponStatus;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;

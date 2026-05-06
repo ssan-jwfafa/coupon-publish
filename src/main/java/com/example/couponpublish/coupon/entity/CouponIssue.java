@@ -1,4 +1,4 @@
-package com.example.couponpublish.coupon.domain;
+package com.example.couponpublish.coupon.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

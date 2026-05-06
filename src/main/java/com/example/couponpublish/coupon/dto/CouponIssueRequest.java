@@ -1,4 +1,4 @@
-package com.example.couponpublish.coupon.api;
+package com.example.couponpublish.coupon.dto;
 
 import jakarta.validation.constraints.NotBlank;
 

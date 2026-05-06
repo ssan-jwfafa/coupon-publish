@@ -1,4 +1,4 @@
-package com.example.couponpublish.coupon.application;
+package com.example.couponpublish.coupon.exception;
 
 import org.springframework.http.HttpStatus;
 

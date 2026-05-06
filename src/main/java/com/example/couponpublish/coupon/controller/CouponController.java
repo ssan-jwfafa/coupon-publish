@@ -1,6 +1,9 @@
-package com.example.couponpublish.coupon.api;
+package com.example.couponpublish.coupon.controller;
 
-import com.example.couponpublish.coupon.application.CouponService;
+import com.example.couponpublish.coupon.dto.CouponIssueRequest;
+import com.example.couponpublish.coupon.dto.CouponIssueResponse;
+import com.example.couponpublish.coupon.dto.CouponRemainingResponse;
+import com.example.couponpublish.coupon.service.CouponService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;

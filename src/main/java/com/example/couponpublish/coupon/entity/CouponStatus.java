@@ -1,4 +1,4 @@
-package com.example.couponpublish.coupon.domain;
+package com.example.couponpublish.coupon.entity;
 
 public enum CouponStatus {
     ISSUED,

@@ -1,8 +1,8 @@
-package com.example.couponpublish.coupon.application;
+package com.example.couponpublish.coupon.service;
 
-import com.example.couponpublish.coupon.domain.CouponIssueRepository;
-import com.example.couponpublish.coupon.domain.CouponStatus;
-import com.example.couponpublish.coupon.infra.CouponRedisRepository;
+import com.example.couponpublish.coupon.entity.CouponStatus;
+import com.example.couponpublish.coupon.repository.CouponIssueRepository;
+import com.example.couponpublish.coupon.repository.CouponRedisRepository;
 import java.util.stream.Collectors;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;

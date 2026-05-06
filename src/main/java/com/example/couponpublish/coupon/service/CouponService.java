@@ -1,12 +1,13 @@
-package com.example.couponpublish.coupon.application;
+package com.example.couponpublish.coupon.service;
 
-import com.example.couponpublish.coupon.api.CouponIssueResponse;
-import com.example.couponpublish.coupon.api.CouponRemainingResponse;
-import com.example.couponpublish.coupon.domain.CouponIssue;
-import com.example.couponpublish.coupon.domain.CouponIssueRepository;
-import com.example.couponpublish.coupon.domain.CouponStatus;
-import com.example.couponpublish.coupon.infra.CouponRedisRepository;
-import com.example.couponpublish.coupon.infra.CouponRedisRepository.IssueResult;
+import com.example.couponpublish.coupon.dto.CouponIssueResponse;
+import com.example.couponpublish.coupon.dto.CouponRemainingResponse;
+import com.example.couponpublish.coupon.entity.CouponIssue;
+import com.example.couponpublish.coupon.entity.CouponStatus;
+import com.example.couponpublish.coupon.exception.CouponException;
+import com.example.couponpublish.coupon.repository.CouponIssueRepository;
+import com.example.couponpublish.coupon.repository.CouponRedisRepository;
+import com.example.couponpublish.coupon.repository.CouponRedisRepository.IssueResult;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

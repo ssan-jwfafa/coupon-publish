@@ -1,4 +1,4 @@
-package com.example.couponpublish.coupon.infra;
+package com.example.couponpublish.coupon.repository;
 
 import com.example.couponpublish.coupon.config.CouponProperties;
 import java.util.List;

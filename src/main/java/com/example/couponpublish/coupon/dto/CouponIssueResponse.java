@@ -1,7 +1,7 @@
-package com.example.couponpublish.coupon.api;
+package com.example.couponpublish.coupon.dto;
 
-import com.example.couponpublish.coupon.domain.CouponIssue;
-import com.example.couponpublish.coupon.domain.CouponStatus;
+import com.example.couponpublish.coupon.entity.CouponIssue;
+import com.example.couponpublish.coupon.entity.CouponStatus;
 import java.time.LocalDateTime;
 
 public record CouponIssueResponse(
