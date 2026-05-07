@@ -68,6 +68,7 @@ class CouponServiceConcurrencyTest {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", redis::getFirstMappedPort);
         registry.add("coupon.max-count", () -> MAX_COUPON_COUNT);
+        registry.add("coupon.kafka.enabled", () -> false);
     }
 
     @BeforeEach

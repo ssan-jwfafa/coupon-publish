@@ -4,6 +4,8 @@ import com.example.couponpublish.coupon.dto.CouponIssueResponse;
 import com.example.couponpublish.coupon.dto.CouponRemainingResponse;
 import com.example.couponpublish.coupon.entity.CouponIssue;
 import com.example.couponpublish.coupon.entity.CouponStatus;
+import com.example.couponpublish.coupon.event.CouponEventPublisher;
+import com.example.couponpublish.coupon.event.CouponIssuedEvent;
 import com.example.couponpublish.coupon.exception.CouponException;
 import com.example.couponpublish.coupon.repository.CouponIssueRepository;
 import com.example.couponpublish.coupon.repository.CouponRedisRepository;
@@ -18,10 +20,16 @@ public class CouponService {
 
     private final CouponIssueRepository couponIssueRepository;
     private final CouponRedisRepository couponRedisRepository;
+    private final CouponEventPublisher couponEventPublisher;
 
-    public CouponService(CouponIssueRepository couponIssueRepository, CouponRedisRepository couponRedisRepository) {
+    public CouponService(
+        CouponIssueRepository couponIssueRepository,
+        CouponRedisRepository couponRedisRepository,
+        CouponEventPublisher couponEventPublisher
+    ) {
         this.couponIssueRepository = couponIssueRepository;
         this.couponRedisRepository = couponRedisRepository;
+        this.couponEventPublisher = couponEventPublisher;
     }
 
     @Transactional
@@ -46,6 +54,7 @@ public class CouponService {
                 .orElseGet(() -> CouponIssue.issue(userId));
 
             CouponIssue saved = couponIssueRepository.save(couponIssue);
+            couponEventPublisher.publishIssued(CouponIssuedEvent.from(saved));
             return CouponIssueResponse.from(saved);
         } catch (CouponException | DataIntegrityViolationException ex) {
             couponRedisRepository.rollbackIssue(userId);

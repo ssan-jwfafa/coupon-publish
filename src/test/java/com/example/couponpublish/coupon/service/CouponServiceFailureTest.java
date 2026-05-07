@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.example.couponpublish.coupon.entity.CouponIssue;
+import com.example.couponpublish.coupon.event.CouponEventPublisher;
 import com.example.couponpublish.coupon.exception.CouponException;
 import com.example.couponpublish.coupon.repository.CouponIssueRepository;
 import com.example.couponpublish.coupon.repository.CouponRedisRepository;
@@ -29,6 +30,9 @@ class CouponServiceFailureTest {
 
     @Mock
     CouponRedisRepository couponRedisRepository;
+
+    @Mock
+    CouponEventPublisher couponEventPublisher;
 
     @InjectMocks
     CouponService couponService;
