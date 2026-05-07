@@ -2,7 +2,13 @@
 
 Spring Boot, Gradle, MySQL, Redis를 사용한 쿠폰 발급 프로젝트입니다.
 
-동시에 여러 사용자가 쿠폰 발급을 요청해도 Redis Lua Script를 이용해 발급 수량 차감과 사용자 중복 발급 체크를 atomic 하게 처리합니다. MySQL에는 발급 내역을 저장하고, `user_id` 유니크 제약을 통해 데이터베이스 레벨에서도 중복 발급을 방지합니다.
+동시에 여러 사용자가 쿠폰 발급을 요청해도 Redis Lua Script를 이용해 발급 수량 차감과 사용자 중복 발급 체크를 atomic 하게 처리합니다. MySQL에는 최종 발급 이력을 저장하고, `user_id` 유니크 제약을 통해 데이터베이스 레벨에서도 중복 발급을 방지합니다.
+
+이 프로젝트는 Redis와 DB를 둘 다 사용합니다. 둘은 같은 일을 중복해서 하는 것이 아니라 서로 다른 책임을 나눕니다.
+
+- Redis: 트래픽이 몰리는 발급 순간에 빠르게 남은 수량을 차감하고 중복 요청을 1차로 차단합니다.
+- DB: 최종 발급 이력과 쿠폰 상태를 영속화하고, 취소/재발급 같은 비즈니스 정합성을 보장합니다.
+- Unique 제약: 애플리케이션이나 Redis 방어를 통과한 예외 상황에서도 동일 `userId` 중복 발급을 막는 마지막 방어선입니다.
 
 ## 기술 스택
 
@@ -70,7 +76,33 @@ src/main/java/com/example/couponpublish
 
 Redis는 Lua Script 실행 중 다른 명령이 끼어들지 않으므로, 위 작업은 Redis 기준으로 atomic 하게 처리됩니다.
 
-추가로 MySQL의 `coupon_issue.user_id` 컬럼에 유니크 제약을 걸어 영속 저장소에서도 중복 발급을 방지합니다.
+DB는 Redis 성공 이후 실제 발급 내역을 저장합니다. 이때 MySQL의 `coupon_issue.user_id` 컬럼에 유니크 제약을 걸어 영속 저장소에서도 중복 발급을 방지합니다. 즉, Redis는 빠른 수량 차감과 1차 중복 방어를 맡고, DB는 최종 발급 이력과 정합성의 기준점이 됩니다.
+
+동시성 테스트는 다음 조건을 검증합니다.
+
+- 1,000명의 사용자가 동시에 요청해도 정확히 100명만 발급 성공
+- 동일 `userId`가 동시에 100번 요청해도 정확히 1번만 발급 성공
+- 성공한 발급 수와 DB의 `ISSUED` 이력 수, Redis 남은 수량이 서로 일치
+
+## 장애 시나리오
+
+### Redis 성공 후 DB 저장 실패
+
+Redis에서 수량 차감과 사용자 등록이 성공했지만 DB 저장이 실패할 수 있습니다. 예를 들어 DB 유니크 제약 충돌, 일시적인 DB 오류 등이 발생할 수 있습니다.
+
+이 경우 Redis에만 발급된 것처럼 남으면 실제 DB 이력과 Redis 수량이 어긋납니다. 그래서 `CouponService`는 DB 저장 단계에서 `CouponException` 또는 `DataIntegrityViolationException`이 발생하면 `couponRedisRepository.rollbackIssue(userId)`를 호출해 Redis의 사용자 Set 등록과 남은 수량 차감을 되돌립니다.
+
+### Redis 장애
+
+Redis가 장애 상태라면 발급을 진행하지 않습니다. Redis가 빠른 수량 차감과 1차 중복 방어를 맡고 있기 때문에, Redis 없이 DB만으로 발급을 계속하면 순간 트래픽에서 초과 발급 위험이 커집니다.
+
+따라서 Redis 발급 스크립트 실행이 실패하면 DB 저장 단계로 넘어가지 않고 요청을 실패 처리합니다.
+
+### 서버 재시작
+
+서버가 재시작되거나 Redis 데이터가 초기화되면 Redis 상태는 DB의 최종 발급 이력을 기준으로 복구합니다.
+
+애플리케이션 시작 시 `CouponRedisInitializer`가 DB에서 `ISSUED` 상태의 발급 내역을 조회하고, 해당 사용자 목록으로 Redis 발급 사용자 Set과 남은 수량을 재구성합니다. 이때 `CANCELED` 상태는 활성 발급으로 보지 않으므로 남은 수량 계산에서 제외됩니다.
 
 ## 실행 전 준비
 
@@ -220,6 +252,8 @@ DELETE /api/coupons/issues/user-1
 - `409 Conflict`: 중복 발급, 쿠폰 소진, 이미 취소된 쿠폰
 
 ## 테스트
+
+동시성 통합 테스트는 Testcontainers로 MySQL과 Redis를 실행하므로 Docker가 필요합니다. Docker를 사용할 수 없는 환경에서는 해당 통합 테스트가 자동으로 스킵됩니다.
 
 ```bash
 ./gradlew test

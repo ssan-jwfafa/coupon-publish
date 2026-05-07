@@ -1,0 +1,157 @@
+package com.example.couponpublish.coupon.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.example.couponpublish.coupon.entity.CouponIssue;
+import com.example.couponpublish.coupon.entity.CouponStatus;
+import com.example.couponpublish.coupon.exception.CouponException;
+import com.example.couponpublish.coupon.repository.CouponIssueRepository;
+import com.example.couponpublish.coupon.repository.CouponRedisRepository;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.IntFunction;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
+
+@SpringBootTest
+@Testcontainers(disabledWithoutDocker = true)
+class CouponServiceConcurrencyTest {
+
+    private static final int MAX_COUPON_COUNT = 100;
+
+    @Container
+    static final MySQLContainer<?> mysql = new MySQLContainer<>(DockerImageName.parse("mysql:8.4"))
+        .withDatabaseName("coupon_publish")
+        .withUsername("coupon")
+        .withPassword("coupon");
+
+    @Container
+    static final GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7.4-alpine"))
+        .withExposedPorts(6379);
+
+    @Autowired
+    CouponService couponService;
+
+    @Autowired
+    CouponIssueRepository couponIssueRepository;
+
+    @Autowired
+    CouponRedisRepository couponRedisRepository;
+
+    @Autowired
+    CouponRedisInitializer couponRedisInitializer;
+
+    @DynamicPropertySource
+    static void properties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", mysql::getJdbcUrl);
+        registry.add("spring.datasource.username", mysql::getUsername);
+        registry.add("spring.datasource.password", mysql::getPassword);
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", redis::getFirstMappedPort);
+        registry.add("coupon.max-count", () -> MAX_COUPON_COUNT);
+    }
+
+    @BeforeEach
+    void setUp() {
+        couponIssueRepository.deleteAll();
+        couponRedisRepository.resetFromActiveUsers(Set.of());
+    }
+
+    @Test
+    void only100RequestsSucceedWhen1000UsersRequestAtTheSameTime() throws Exception {
+        long successCount = issueConcurrently(1_000, index -> "user-" + index);
+
+        assertThat(successCount).isEqualTo(MAX_COUPON_COUNT);
+        assertThat(couponIssueRepository.countByStatus(CouponStatus.ISSUED)).isEqualTo(MAX_COUPON_COUNT);
+        assertThat(couponRedisRepository.getRemainingCount()).isZero();
+    }
+
+    @Test
+    void onlyOneRequestSucceedsWhenSameUserRequests100TimesAtTheSameTime() throws Exception {
+        long successCount = issueConcurrently(100, ignored -> "same-user");
+
+        assertThat(successCount).isOne();
+        assertThat(couponIssueRepository.countByStatus(CouponStatus.ISSUED)).isOne();
+        assertThat(couponRedisRepository.getRemainingCount()).isEqualTo(MAX_COUPON_COUNT - 1);
+    }
+
+    @Test
+    void recoverRedisFromDatabaseIssuedHistoryWhenServerRestarts() {
+        CouponIssue canceled = CouponIssue.issue("canceled-user");
+        canceled.cancel();
+        couponIssueRepository.save(CouponIssue.issue("active-user-1"));
+        couponIssueRepository.save(CouponIssue.issue("active-user-2"));
+        couponIssueRepository.save(canceled);
+        couponRedisRepository.resetFromActiveUsers(Set.of("stale-user"));
+
+        couponRedisInitializer.run(null);
+
+        assertThat(couponRedisRepository.getRemainingCount()).isEqualTo(MAX_COUPON_COUNT - 2);
+        assertThatThrownBy(() -> couponService.issue("active-user-1"))
+            .isInstanceOf(CouponException.class)
+            .hasMessage("이미 발급된 사용자입니다.");
+        assertThat(couponRedisRepository.getRemainingCount()).isEqualTo(MAX_COUPON_COUNT - 2);
+    }
+
+    private long issueConcurrently(int requestCount, IntFunction<String> userIdProvider) throws Exception {
+        CountDownLatch ready = new CountDownLatch(requestCount);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<Boolean>> futures = new ArrayList<>();
+
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            for (int index = 0; index < requestCount; index++) {
+                int requestIndex = index;
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    try {
+                        couponService.issue(userIdProvider.apply(requestIndex));
+                        return true;
+                    } catch (CouponException ex) {
+                        return false;
+                    }
+                }));
+            }
+
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            long successCount = 0;
+            for (Future<Boolean> future : futures) {
+                if (getFutureResult(future)) {
+                    successCount++;
+                }
+            }
+            return successCount;
+        }
+    }
+
+    private boolean getFutureResult(Future<Boolean> future) throws Exception {
+        try {
+            return future.get(30, TimeUnit.SECONDS);
+        } catch (ExecutionException ex) {
+            throw new AssertionError("동시성 테스트 요청 중 예상하지 못한 예외가 발생했습니다.", ex.getCause());
+        } catch (TimeoutException ex) {
+            throw new AssertionError("동시성 테스트 요청이 제한 시간 안에 끝나지 않았습니다.", ex);
+        }
+    }
+}
