@@ -246,6 +246,26 @@
           "response": []
         },
         {
+          "name": "Get Coupon Issue Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/statistics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "coupons",
+                "{{couponId}}",
+                "statistics"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Cancel Coupon Issue",
           "event": [
             {

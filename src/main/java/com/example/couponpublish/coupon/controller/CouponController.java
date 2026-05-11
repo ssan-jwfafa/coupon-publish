@@ -4,9 +4,11 @@ import com.example.couponpublish.coupon.dto.CouponCreateRequest;
 import com.example.couponpublish.coupon.dto.CouponIssuePageResponse;
 import com.example.couponpublish.coupon.dto.CouponIssueRequest;
 import com.example.couponpublish.coupon.dto.CouponIssueResponse;
+import com.example.couponpublish.coupon.dto.CouponIssueStatisticsResponse;
 import com.example.couponpublish.coupon.dto.CouponRemainingResponse;
 import com.example.couponpublish.coupon.dto.CouponResponse;
 import com.example.couponpublish.coupon.entity.CouponStatus;
+import com.example.couponpublish.coupon.service.CouponIssueStatisticsService;
 import com.example.couponpublish.coupon.service.CouponService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -29,9 +31,11 @@ import org.springframework.validation.annotation.Validated;
 public class CouponController {
 
     private final CouponService couponService;
+    private final CouponIssueStatisticsService statisticsService;
 
-    public CouponController(CouponService couponService) {
+    public CouponController(CouponService couponService, CouponIssueStatisticsService statisticsService) {
         this.couponService = couponService;
+        this.statisticsService = statisticsService;
     }
 
     @PostMapping
@@ -72,6 +76,11 @@ public class CouponController {
     @GetMapping("/{couponId}/remaining")
     public CouponRemainingResponse getRemainingCount(@PathVariable Long couponId) {
         return couponService.getRemainingCount(couponId);
+    }
+
+    @GetMapping("/{couponId}/statistics")
+    public CouponIssueStatisticsResponse getStatistics(@PathVariable Long couponId) {
+        return statisticsService.getStatistics(couponId);
     }
 
     @DeleteMapping("/{couponId}/issues/{userId}")

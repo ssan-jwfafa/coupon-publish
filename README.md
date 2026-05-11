@@ -8,7 +8,7 @@ Spring Boot, Gradle, MySQL, Redis, Kafka를 사용한 쿠폰 발급 프로젝트
 
 - Redis: 트래픽이 몰리는 발급 순간에 빠르게 남은 수량을 차감하고 중복 요청을 1차로 차단합니다.
 - DB: 최종 발급 이력과 쿠폰 상태를 영속화하고, 취소/재발급 같은 비즈니스 정합성을 보장합니다.
-- Kafka: 발급 성공 이벤트를 비동기로 전달해 후속 처리 흐름을 분리할 수 있게 합니다.
+- Kafka: 발급 성공 이벤트를 비동기로 전달하고, consumer가 이벤트를 집계 테이블에 반영합니다.
 - Unique 제약: 애플리케이션이나 Redis 방어를 통과한 예외 상황에서도 동일 `userId` 중복 발급을 막는 마지막 방어선입니다.
 
 ## 기술 스택
@@ -38,7 +38,7 @@ Spring Boot, Gradle, MySQL, Redis, Kafka를 사용한 쿠폰 발급 프로젝트
 - Redis Lua Script 기반 atomic 발급 처리
 - 애플리케이션 시작 시 MySQL의 활성 발급 내역 기준으로 Redis 상태 재구성
 - 쿠폰 발급 성공 이벤트 Kafka 발행
-- Kafka 발급 이벤트 consumer 예시 제공
+- Kafka 발급 이벤트 consumer를 통한 쿠폰별 발급 집계
 
 ## 프로젝트 구조
 
@@ -56,12 +56,14 @@ src/main/java/com/example/couponpublish
     │   ├── CouponIssuePageResponse.java
     │   ├── CouponIssueRequest.java
     │   ├── CouponIssueResponse.java
+    │   ├── CouponIssueStatisticsResponse.java
     │   ├── CouponRemainingResponse.java
     │   ├── CouponResponse.java
     │   └── ErrorResponse.java
     ├── entity
     │   ├── Coupon.java
     │   ├── CouponIssue.java
+    │   ├── CouponIssueStatistics.java
     │   └── CouponStatus.java
     ├── exception
     │   ├── CouponException.java
@@ -75,8 +77,10 @@ src/main/java/com/example/couponpublish
     ├── repository
     │   ├── CouponRepository.java
     │   ├── CouponIssueRepository.java
+    │   ├── CouponIssueStatisticsRepository.java
     │   └── CouponRedisRepository.java
     └── service
+        ├── CouponIssueStatisticsService.java
         ├── CouponRedisInitializer.java
         └── CouponService.java
 ```
@@ -110,6 +114,7 @@ DB는 Redis 성공 이후 실제 발급 내역을 저장합니다. 이때 MySQL�
 7. DB 저장 실패 시 Redis 차감 롤백
 8. DB 트랜잭션 커밋 후 Kafka coupon-issued 이벤트 발행
 9. 발급 결과 응답 반환
+10. Kafka consumer가 coupon-issued 이벤트를 소비해 coupon_issue_statistics 집계 테이블 갱신
 ```
 
 동시성 테스트는 다음 조건을 검증합니다.
@@ -140,7 +145,7 @@ Redis가 장애 상태라면 발급을 진행하지 않습니다. Redis가 빠�
 
 ### Kafka 장애
 
-현재 Kafka 이벤트는 DB 트랜잭션 커밋 이후 발행됩니다. Kafka 브로커가 내려가 있으면 발급 API 자체는 DB 커밋까지 완료될 수 있지만, 이벤트 발행은 실패할 수 있습니다.
+현재 Kafka 이벤트는 DB 트랜잭션 커밋 이후 발행됩니다. Kafka consumer는 발급 이벤트를 소비한 뒤 `coupon_issue_statistics` 테이블의 쿠폰별 발급 수와 마지막 발급 시각을 갱신합니다. Kafka 브로커가 내려가 있으면 발급 API 자체는 DB 커밋까지 완료될 수 있지만, 이벤트 발행과 집계 반영은 실패할 수 있습니다.
 
 운영 환경에서는 이벤트 유실을 더 강하게 막기 위해 outbox 테이블을 두고, 별도 relay가 outbox 데이터를 Kafka로 재시도 발행하는 구조를 고려할 수 있습니다. 현재 구현은 로컬 학습과 기본 이벤트 연동을 위한 단순 producer 구조입니다.
 
@@ -355,6 +360,25 @@ GET /api/coupons/1/remaining
 ```json
 {
   "remainingCount": 99
+}
+```
+
+### 쿠폰 발급 집계 조회
+
+Kafka consumer가 처리한 발급 이벤트 기준의 집계입니다.
+
+```http
+GET /api/coupons/1/statistics
+```
+
+응답 예시:
+
+```json
+{
+  "couponId": 1,
+  "issuedCount": 1,
+  "lastIssuedAt": "2026-05-06T16:30:00",
+  "updatedAt": "2026-05-06T16:30:01"
 }
 ```
 
