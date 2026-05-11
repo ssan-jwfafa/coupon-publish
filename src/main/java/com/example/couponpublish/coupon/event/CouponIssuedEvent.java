@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 public record CouponIssuedEvent(
     Long couponIssueId,
+    Long couponId,
     String userId,
     CouponStatus status,
     LocalDateTime issuedAt
@@ -14,6 +15,7 @@ public record CouponIssuedEvent(
     public static CouponIssuedEvent from(CouponIssue couponIssue) {
         return new CouponIssuedEvent(
             couponIssue.getId(),
+            couponIssue.getCouponId(),
             couponIssue.getUserId(),
             couponIssue.getStatus(),
             couponIssue.getIssuedAt()

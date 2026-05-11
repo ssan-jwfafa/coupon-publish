@@ -4,9 +4,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
@@ -19,7 +22,7 @@ import lombok.NoArgsConstructor;
 @Table(
     name = "coupon_issue",
     uniqueConstraints = {
-        @UniqueConstraint(name = "uk_coupon_issue_user_id", columnNames = "user_id")
+        @UniqueConstraint(name = "uk_coupon_issue_coupon_id_user_id", columnNames = {"coupon_id", "user_id"})
     }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -28,6 +31,10 @@ public class CouponIssue {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "coupon_id", nullable = false)
+    private Coupon coupon;
 
     @Column(name = "user_id", nullable = false, length = 64)
     private String userId;
@@ -42,14 +49,19 @@ public class CouponIssue {
     @Column(name = "canceled_at")
     private LocalDateTime canceledAt;
 
-    private CouponIssue(String userId) {
+    private CouponIssue(Coupon coupon, String userId) {
+        this.coupon = coupon;
         this.userId = userId;
         this.status = CouponStatus.ISSUED;
         this.issuedAt = LocalDateTime.now();
     }
 
-    public static CouponIssue issue(String userId) {
-        return new CouponIssue(userId);
+    public Long getCouponId() {
+        return coupon.getId();
+    }
+
+    public static CouponIssue issue(Coupon coupon, String userId) {
+        return new CouponIssue(coupon, userId);
     }
 
     public void reissue() {

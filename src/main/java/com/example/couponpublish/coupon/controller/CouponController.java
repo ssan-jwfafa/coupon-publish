@@ -1,10 +1,16 @@
 package com.example.couponpublish.coupon.controller;
 
+import com.example.couponpublish.coupon.dto.CouponCreateRequest;
+import com.example.couponpublish.coupon.dto.CouponIssuePageResponse;
 import com.example.couponpublish.coupon.dto.CouponIssueRequest;
 import com.example.couponpublish.coupon.dto.CouponIssueResponse;
 import com.example.couponpublish.coupon.dto.CouponRemainingResponse;
+import com.example.couponpublish.coupon.dto.CouponResponse;
+import com.example.couponpublish.coupon.entity.CouponStatus;
 import com.example.couponpublish.coupon.service.CouponService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,10 +18,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
 @RestController
+@Validated
 @RequestMapping("/api/coupons")
 public class CouponController {
 
@@ -25,24 +34,48 @@ public class CouponController {
         this.couponService = couponService;
     }
 
-    @PostMapping("/issues")
+    @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public CouponIssueResponse issue(@Valid @RequestBody CouponIssueRequest request) {
-        return couponService.issue(request.userId());
+    public CouponResponse createCoupon(@Valid @RequestBody CouponCreateRequest request) {
+        return couponService.createCoupon(request);
     }
 
-    @GetMapping("/issues/{userId}")
-    public CouponIssueResponse getIssue(@PathVariable String userId) {
-        return couponService.getIssue(userId);
+    @GetMapping("/{couponId}")
+    public CouponResponse getCoupon(@PathVariable Long couponId) {
+        return couponService.getCoupon(couponId);
     }
 
-    @GetMapping("/remaining")
-    public CouponRemainingResponse getRemainingCount() {
-        return couponService.getRemainingCount();
+    @PostMapping("/{couponId}/issues")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CouponIssueResponse issue(
+        @PathVariable Long couponId,
+        @Valid @RequestBody CouponIssueRequest request
+    ) {
+        return couponService.issue(couponId, request.userId());
     }
 
-    @DeleteMapping("/issues/{userId}")
-    public CouponIssueResponse cancel(@PathVariable String userId) {
-        return couponService.cancel(userId);
+    @GetMapping("/{couponId}/issues/{userId}")
+    public CouponIssueResponse getIssue(@PathVariable Long couponId, @PathVariable String userId) {
+        return couponService.getIssue(couponId, userId);
+    }
+
+    @GetMapping("/{couponId}/issues")
+    public CouponIssuePageResponse getIssues(
+        @PathVariable Long couponId,
+        @RequestParam(required = false) CouponStatus status,
+        @RequestParam(defaultValue = "0") @Min(0) int page,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size
+    ) {
+        return couponService.getIssues(couponId, status, page, size);
+    }
+
+    @GetMapping("/{couponId}/remaining")
+    public CouponRemainingResponse getRemainingCount(@PathVariable Long couponId) {
+        return couponService.getRemainingCount(couponId);
+    }
+
+    @DeleteMapping("/{couponId}/issues/{userId}")
+    public CouponIssueResponse cancel(@PathVariable Long couponId, @PathVariable String userId) {
+        return couponService.cancel(couponId, userId);
     }
 }

@@ -5,6 +5,8 @@ import com.example.couponpublish.coupon.entity.CouponStatus;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -12,13 +14,20 @@ import org.springframework.data.repository.query.Param;
 
 public interface CouponIssueRepository extends JpaRepository<CouponIssue, Long> {
 
-    Optional<CouponIssue> findByUserId(String userId);
+    Page<CouponIssue> findAllByCouponId(Long couponId, Pageable pageable);
 
-    List<CouponIssue> findAllByStatus(CouponStatus status);
+    Page<CouponIssue> findAllByCouponIdAndStatus(Long couponId, CouponStatus status, Pageable pageable);
 
-    long countByStatus(CouponStatus status);
+    List<CouponIssue> findAllByCouponIdAndStatus(Long couponId, CouponStatus status);
+
+    long countByCouponIdAndStatus(Long couponId, CouponStatus status);
+
+    Optional<CouponIssue> findByCouponIdAndUserId(Long couponId, String userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select c from CouponIssue c where c.userId = :userId")
-    Optional<CouponIssue> findByUserIdForUpdate(@Param("userId") String userId);
+    @Query("select c from CouponIssue c where c.coupon.id = :couponId and c.userId = :userId")
+    Optional<CouponIssue> findByCouponIdAndUserIdForUpdate(
+        @Param("couponId") Long couponId,
+        @Param("userId") String userId
+    );
 }

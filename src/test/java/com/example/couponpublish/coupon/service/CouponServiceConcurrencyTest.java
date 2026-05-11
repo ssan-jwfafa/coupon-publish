@@ -3,11 +3,14 @@ package com.example.couponpublish.coupon.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.couponpublish.coupon.entity.Coupon;
 import com.example.couponpublish.coupon.entity.CouponIssue;
 import com.example.couponpublish.coupon.entity.CouponStatus;
 import com.example.couponpublish.coupon.exception.CouponException;
 import com.example.couponpublish.coupon.repository.CouponIssueRepository;
 import com.example.couponpublish.coupon.repository.CouponRedisRepository;
+import com.example.couponpublish.coupon.repository.CouponRepository;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -51,6 +54,9 @@ class CouponServiceConcurrencyTest {
     CouponService couponService;
 
     @Autowired
+    CouponRepository couponRepository;
+
+    @Autowired
     CouponIssueRepository couponIssueRepository;
 
     @Autowired
@@ -58,6 +64,8 @@ class CouponServiceConcurrencyTest {
 
     @Autowired
     CouponRedisInitializer couponRedisInitializer;
+
+    Coupon coupon;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -67,14 +75,20 @@ class CouponServiceConcurrencyTest {
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", redis::getFirstMappedPort);
-        registry.add("coupon.max-count", () -> MAX_COUPON_COUNT);
         registry.add("coupon.kafka.enabled", () -> false);
     }
 
     @BeforeEach
     void setUp() {
         couponIssueRepository.deleteAll();
-        couponRedisRepository.resetFromActiveUsers(Set.of());
+        couponRepository.deleteAll();
+        coupon = couponRepository.save(Coupon.create(
+            "test coupon",
+            MAX_COUPON_COUNT,
+            LocalDateTime.now().minusMinutes(1),
+            LocalDateTime.now().plusHours(1)
+        ));
+        couponRedisRepository.resetFromActiveUsers(coupon.getId(), coupon.getMaxCount(), Set.of());
     }
 
     @Test
@@ -82,8 +96,9 @@ class CouponServiceConcurrencyTest {
         long successCount = issueConcurrently(1_000, index -> "user-" + index);
 
         assertThat(successCount).isEqualTo(MAX_COUPON_COUNT);
-        assertThat(couponIssueRepository.countByStatus(CouponStatus.ISSUED)).isEqualTo(MAX_COUPON_COUNT);
-        assertThat(couponRedisRepository.getRemainingCount()).isZero();
+        assertThat(couponIssueRepository.countByCouponIdAndStatus(coupon.getId(), CouponStatus.ISSUED))
+            .isEqualTo(MAX_COUPON_COUNT);
+        assertThat(couponRedisRepository.getRemainingCount(coupon.getId(), coupon.getMaxCount())).isZero();
     }
 
     @Test
@@ -91,26 +106,29 @@ class CouponServiceConcurrencyTest {
         long successCount = issueConcurrently(100, ignored -> "same-user");
 
         assertThat(successCount).isOne();
-        assertThat(couponIssueRepository.countByStatus(CouponStatus.ISSUED)).isOne();
-        assertThat(couponRedisRepository.getRemainingCount()).isEqualTo(MAX_COUPON_COUNT - 1);
+        assertThat(couponIssueRepository.countByCouponIdAndStatus(coupon.getId(), CouponStatus.ISSUED)).isOne();
+        assertThat(couponRedisRepository.getRemainingCount(coupon.getId(), coupon.getMaxCount()))
+            .isEqualTo(MAX_COUPON_COUNT - 1);
     }
 
     @Test
     void recoverRedisFromDatabaseIssuedHistoryWhenServerRestarts() {
-        CouponIssue canceled = CouponIssue.issue("canceled-user");
+        CouponIssue canceled = CouponIssue.issue(coupon, "canceled-user");
         canceled.cancel();
-        couponIssueRepository.save(CouponIssue.issue("active-user-1"));
-        couponIssueRepository.save(CouponIssue.issue("active-user-2"));
+        couponIssueRepository.save(CouponIssue.issue(coupon, "active-user-1"));
+        couponIssueRepository.save(CouponIssue.issue(coupon, "active-user-2"));
         couponIssueRepository.save(canceled);
-        couponRedisRepository.resetFromActiveUsers(Set.of("stale-user"));
+        couponRedisRepository.resetFromActiveUsers(coupon.getId(), coupon.getMaxCount(), Set.of("stale-user"));
 
         couponRedisInitializer.run(null);
 
-        assertThat(couponRedisRepository.getRemainingCount()).isEqualTo(MAX_COUPON_COUNT - 2);
-        assertThatThrownBy(() -> couponService.issue("active-user-1"))
+        assertThat(couponRedisRepository.getRemainingCount(coupon.getId(), coupon.getMaxCount()))
+            .isEqualTo(MAX_COUPON_COUNT - 2);
+        assertThatThrownBy(() -> couponService.issue(coupon.getId(), "active-user-1"))
             .isInstanceOf(CouponException.class)
             .hasMessage("이미 발급된 사용자입니다.");
-        assertThat(couponRedisRepository.getRemainingCount()).isEqualTo(MAX_COUPON_COUNT - 2);
+        assertThat(couponRedisRepository.getRemainingCount(coupon.getId(), coupon.getMaxCount()))
+            .isEqualTo(MAX_COUPON_COUNT - 2);
     }
 
     private long issueConcurrently(int requestCount, IntFunction<String> userIdProvider) throws Exception {
@@ -125,7 +143,7 @@ class CouponServiceConcurrencyTest {
                     ready.countDown();
                     start.await();
                     try {
-                        couponService.issue(userIdProvider.apply(requestIndex));
+                        couponService.issue(coupon.getId(), userIdProvider.apply(requestIndex));
                         return true;
                     } catch (CouponException ex) {
                         return false;

@@ -14,6 +14,11 @@ public class CouponIssuedEventConsumer {
 
     @KafkaListener(topics = "${coupon.kafka.topics.coupon-issued}", groupId = "${spring.kafka.consumer.group-id}")
     public void listen(CouponIssuedEvent event) {
-        log.info("coupon issued event consumed: couponIssueId={}, userId={}", event.couponIssueId(), event.userId());
+        log.info(
+            "coupon issued event consumed: couponIssueId={}, couponId={}, userId={}",
+            event.couponIssueId(),
+            event.couponId(),
+            event.userId()
+        );
     }
 }

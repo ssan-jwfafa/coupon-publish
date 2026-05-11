@@ -27,12 +27,14 @@ Spring Boot, Gradle, MySQL, Redis, Kafka를 사용한 쿠폰 발급 프로젝트
 
 ## 주요 기능
 
-- 쿠폰 발급
-- 쿠폰 발급 내역 조회
-- 쿠폰 남은 수량 조회
+- 쿠폰 캠페인 생성 및 조회
+- 쿠폰별 발급 기간 관리
+- 쿠폰별 발급
+- 쿠폰별 발급 내역 단건/목록 조회
+- 쿠폰별 남은 수량 조회
 - 쿠폰 발급 취소
-- 최대 발급 수량 100장 제한
-- 동일 사용자 중복 발급 방지
+- 쿠폰별 최대 발급 수량 제한
+- 쿠폰별 동일 사용자 중복 발급 방지
 - Redis Lua Script 기반 atomic 발급 처리
 - 애플리케이션 시작 시 MySQL의 활성 발급 내역 기준으로 Redis 상태 재구성
 - 쿠폰 발급 성공 이벤트 Kafka 발행
@@ -46,16 +48,19 @@ src/main/java/com/example/couponpublish
 └── coupon
     ├── config
     │   ├── CouponConfig.java
-    │   ├── KafkaTopicProperties.java
-    │   └── CouponProperties.java
+    │   └── KafkaTopicProperties.java
     ├── controller
     │   └── CouponController.java
     ├── dto
+    │   ├── CouponCreateRequest.java
+    │   ├── CouponIssuePageResponse.java
     │   ├── CouponIssueRequest.java
     │   ├── CouponIssueResponse.java
     │   ├── CouponRemainingResponse.java
+    │   ├── CouponResponse.java
     │   └── ErrorResponse.java
     ├── entity
+    │   ├── Coupon.java
     │   ├── CouponIssue.java
     │   └── CouponStatus.java
     ├── exception
@@ -68,6 +73,7 @@ src/main/java/com/example/couponpublish
     │   ├── KafkaCouponEventPublisher.java
     │   └── NoOpCouponEventPublisher.java
     ├── repository
+    │   ├── CouponRepository.java
     │   ├── CouponIssueRepository.java
     │   └── CouponRedisRepository.java
     └── service
@@ -88,21 +94,22 @@ src/main/java/com/example/couponpublish
 
 Redis는 Lua Script 실행 중 다른 명령이 끼어들지 않으므로, 위 작업은 Redis 기준으로 atomic 하게 처리됩니다.
 
-DB는 Redis 성공 이후 실제 발급 내역을 저장합니다. 이때 MySQL의 `coupon_issue.user_id` 컬럼에 유니크 제약을 걸어 영속 저장소에서도 중복 발급을 방지합니다. 즉, Redis는 빠른 수량 차감과 1차 중복 방어를 맡고, DB는 최종 발급 이력과 정합성의 기준점이 됩니다.
+DB는 Redis 성공 이후 실제 발급 내역을 저장합니다. 이때 MySQL의 `coupon_issue.coupon_id, user_id` 조합에 유니크 제약을 걸어 영속 저장소에서도 쿠폰별 중복 발급을 방지합니다. 즉, Redis는 빠른 수량 차감과 1차 중복 방어를 맡고, DB는 최종 발급 이력과 정합성의 기준점이 됩니다.
 
 발급 이력이 DB에 저장되면 `CouponIssuedEvent`를 Kafka `coupon-issued` topic으로 발행합니다. 이벤트 발행은 DB 트랜잭션 커밋 이후에 실행되도록 등록되어, DB 저장이 롤백된 발급 건에 대해 Kafka 이벤트가 먼저 나가는 상황을 피합니다.
 
 전체 발급 흐름은 다음과 같습니다.
 
 ```text
-1. POST /api/coupons/issues 요청
-2. Redis Lua Script로 중복 발급과 남은 수량 확인
-3. Redis에서 남은 수량 차감 및 발급 사용자 등록
-4. MySQL에서 userId 기준 비관적 락 조회
-5. 신규 발급 또는 취소 이력 재발급 저장
-6. DB 저장 실패 시 Redis 차감 롤백
-7. DB 트랜잭션 커밋 후 Kafka coupon-issued 이벤트 발행
-8. 발급 결과 응답 반환
+1. POST /api/coupons/{couponId}/issues 요청
+2. MySQL에서 couponId 기준 쿠폰 캠페인과 발급 기간 확인
+3. Redis Lua Script로 쿠폰별 중복 발급과 남은 수량 확인
+4. Redis에서 쿠폰별 남은 수량 차감 및 발급 사용자 등록
+5. MySQL에서 couponId + userId 기준 비관적 락 조회
+6. 신규 발급 또는 취소 이력 재발급 저장
+7. DB 저장 실패 시 Redis 차감 롤백
+8. DB 트랜잭션 커밋 후 Kafka coupon-issued 이벤트 발행
+9. 발급 결과 응답 반환
 ```
 
 동시성 테스트는 다음 조건을 검증합니다.
@@ -117,7 +124,7 @@ DB는 Redis 성공 이후 실제 발급 내역을 저장합니다. 이때 MySQL�
 
 Redis에서 수량 차감과 사용자 등록이 성공했지만 DB 저장이 실패할 수 있습니다. 예를 들어 DB 유니크 제약 충돌, 일시적인 DB 오류 등이 발생할 수 있습니다.
 
-이 경우 Redis에만 발급된 것처럼 남으면 실제 DB 이력과 Redis 수량이 어긋납니다. 그래서 `CouponService`는 DB 저장 단계에서 `CouponException` 또는 `DataIntegrityViolationException`이 발생하면 `couponRedisRepository.rollbackIssue(userId)`를 호출해 Redis의 사용자 Set 등록과 남은 수량 차감을 되돌립니다.
+이 경우 Redis에만 발급된 것처럼 남으면 실제 DB 이력과 Redis 수량이 어긋납니다. 그래서 `CouponService`는 DB 저장 단계에서 `CouponException` 또는 `DataIntegrityViolationException`이 발생하면 `couponRedisRepository.rollbackIssue(couponId, userId)`를 호출해 Redis의 사용자 Set 등록과 남은 수량 차감을 되돌립니다.
 
 ### Redis 장애
 
@@ -129,7 +136,7 @@ Redis가 장애 상태라면 발급을 진행하지 않습니다. Redis가 빠�
 
 서버가 재시작되거나 Redis 데이터가 초기화되면 Redis 상태는 DB의 최종 발급 이력을 기준으로 복구합니다.
 
-애플리케이션 시작 시 `CouponRedisInitializer`가 DB에서 `ISSUED` 상태의 발급 내역을 조회하고, 해당 사용자 목록으로 Redis 발급 사용자 Set과 남은 수량을 재구성합니다. 이때 `CANCELED` 상태는 활성 발급으로 보지 않으므로 남은 수량 계산에서 제외됩니다.
+애플리케이션 시작 시 `CouponRedisInitializer`가 쿠폰별로 DB의 `ISSUED` 상태 발급 내역을 조회하고, 해당 사용자 목록으로 Redis 발급 사용자 Set과 남은 수량을 재구성합니다. 이때 `CANCELED` 상태는 활성 발급으로 보지 않으므로 남은 수량 계산에서 제외됩니다.
 
 ### Kafka 장애
 
@@ -191,7 +198,6 @@ spring:
     bootstrap-servers: localhost:9092
 
 coupon:
-  max-count: 100
   kafka:
     enabled: true
     topics:
@@ -200,6 +206,8 @@ coupon:
 
 `coupon.kafka.enabled=false`로 설정하면 Kafka producer/consumer bean 대신 no-op publisher를 사용합니다. 테스트에서는 Kafka 브로커 없이 실행되도록 이 값을 `false`로 둡니다.
 
+이전 단일 쿠폰 구조로 로컬 DB를 이미 실행한 적이 있다면 `coupon_issue.user_id` 단독 unique 제약이 남아 있을 수 있습니다. 새 구조는 `coupon_id, user_id` 조합 unique 제약을 사용하므로, 로컬 개발 환경에서는 `docker compose down -v` 후 다시 실행하거나 기존 스키마를 재생성하는 것이 안전합니다.
+
 ## Kafka 이벤트
 
 쿠폰 발급 성공 시 `coupon-issued` topic으로 다음 형태의 이벤트를 발행합니다.
@@ -207,6 +215,7 @@ coupon:
 ```json
 {
   "couponIssueId": 1,
+  "couponId": 1,
   "userId": "user-1",
   "status": "ISSUED",
   "issuedAt": "2026-05-06T16:30:00"
@@ -221,10 +230,54 @@ docker exec -it coupon-kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstra
 
 ## API
 
+### 쿠폰 캠페인 생성
+
+```http
+POST /api/coupons
+Content-Type: application/json
+
+{
+  "name": "웰컴 쿠폰",
+  "maxCount": 100,
+  "startAt": "2026-05-06T10:00:00",
+  "endAt": "2026-05-31T23:59:59"
+}
+```
+
+응답 예시:
+
+```json
+{
+  "couponId": 1,
+  "name": "웰컴 쿠폰",
+  "maxCount": 100,
+  "startAt": "2026-05-06T10:00:00",
+  "endAt": "2026-05-31T23:59:59"
+}
+```
+
+### 쿠폰 캠페인 조회
+
+```http
+GET /api/coupons/1
+```
+
+응답 예시:
+
+```json
+{
+  "couponId": 1,
+  "name": "웰컴 쿠폰",
+  "maxCount": 100,
+  "startAt": "2026-05-06T10:00:00",
+  "endAt": "2026-05-31T23:59:59"
+}
+```
+
 ### 쿠폰 발급
 
 ```http
-POST /api/coupons/issues
+POST /api/coupons/1/issues
 Content-Type: application/json
 
 {
@@ -237,6 +290,7 @@ Content-Type: application/json
 ```json
 {
   "couponIssueId": 1,
+  "couponId": 1,
   "userId": "user-1",
   "status": "ISSUED",
   "issuedAt": "2026-05-06T16:30:00",
@@ -244,10 +298,10 @@ Content-Type: application/json
 }
 ```
 
-### 쿠폰 발급 내역 조회
+### 쿠폰 발급 내역 단건 조회
 
 ```http
-GET /api/coupons/issues/user-1
+GET /api/coupons/1/issues/user-1
 ```
 
 응답 예시:
@@ -255,6 +309,7 @@ GET /api/coupons/issues/user-1
 ```json
 {
   "couponIssueId": 1,
+  "couponId": 1,
   "userId": "user-1",
   "status": "ISSUED",
   "issuedAt": "2026-05-06T16:30:00",
@@ -262,10 +317,37 @@ GET /api/coupons/issues/user-1
 }
 ```
 
+### 쿠폰 발급 내역 목록 조회
+
+```http
+GET /api/coupons/1/issues?status=ISSUED&page=0&size=20
+```
+
+응답 예시:
+
+```json
+{
+  "contents": [
+    {
+      "couponIssueId": 1,
+      "couponId": 1,
+      "userId": "user-1",
+      "status": "ISSUED",
+      "issuedAt": "2026-05-06T16:30:00",
+      "canceledAt": null
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
 ### 쿠폰 남은 수량 조회
 
 ```http
-GET /api/coupons/remaining
+GET /api/coupons/1/remaining
 ```
 
 응답 예시:
@@ -279,7 +361,7 @@ GET /api/coupons/remaining
 ### 쿠폰 발급 취소
 
 ```http
-DELETE /api/coupons/issues/user-1
+DELETE /api/coupons/1/issues/user-1
 ```
 
 응답 예시:
@@ -287,6 +369,7 @@ DELETE /api/coupons/issues/user-1
 ```json
 {
   "couponIssueId": 1,
+  "couponId": 1,
   "userId": "user-1",
   "status": "CANCELED",
   "issuedAt": "2026-05-06T16:30:00",
@@ -308,8 +391,8 @@ DELETE /api/coupons/issues/user-1
 주요 상태 코드:
 
 - `400 Bad Request`: 요청 값 검증 실패
-- `404 Not Found`: 발급 내역 없음
-- `409 Conflict`: 중복 발급, 쿠폰 소진, 이미 취소된 쿠폰
+- `404 Not Found`: 쿠폰 또는 발급 내역 없음
+- `409 Conflict`: 중복 발급, 쿠폰 소진, 발급 기간 아님, 이미 취소된 쿠폰
 
 ## 테스트
 

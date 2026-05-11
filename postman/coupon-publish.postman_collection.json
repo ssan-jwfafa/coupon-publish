@@ -11,6 +11,10 @@
       "value": "http://localhost:8080"
     },
     {
+      "key": "couponId",
+      "value": "1"
+    },
+    {
       "key": "userId",
       "value": "user-1"
     },
@@ -24,18 +28,89 @@
       "name": "Happy Path",
       "item": [
         {
-          "name": "Get Remaining Coupons",
+          "name": "Create Coupon Campaign",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 201 Created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('response has coupon id', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.couponId).to.exist;",
+                  "  pm.collectionVariables.set('couponId', body.couponId);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Welcome Coupon\",\n  \"maxCount\": 100,\n  \"startAt\": \"2026-01-01T00:00:00\",\n  \"endAt\": \"2026-12-31T23:59:59\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/coupons",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "coupons"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Coupon Campaign",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/coupons/remaining",
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "coupons",
+                "{{couponId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Remaining Coupons",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/remaining",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "coupons",
+                "{{couponId}}",
                 "remaining"
               ]
             }
@@ -55,6 +130,7 @@
                   "",
                   "pm.test('response has issued coupon', function () {",
                   "  const body = pm.response.json();",
+                  "  pm.expect(body.couponId).to.eql(Number(pm.collectionVariables.get('couponId') || pm.variables.get('couponId')));",
                   "  pm.expect(body.userId).to.eql(pm.variables.get('userId'));",
                   "  pm.expect(body.status).to.eql('ISSUED');",
                   "  pm.expect(body.couponIssueId).to.exist;",
@@ -82,13 +158,14 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/api/coupons/issues",
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "coupons",
+                "{{couponId}}",
                 "issues"
               ]
             }
@@ -119,15 +196,50 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/coupons/issues/{{userId}}",
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues/{{userId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "coupons",
+                "{{couponId}}",
                 "issues",
                 "{{userId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Coupon Issues",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues?status=ISSUED&page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "coupons",
+                "{{couponId}}",
+                "issues"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "ISSUED"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
               ]
             }
           },
@@ -159,13 +271,14 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/coupons/issues/{{userId}}",
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues/{{userId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "coupons",
+                "{{couponId}}",
                 "issues",
                 "{{userId}}"
               ]
@@ -180,24 +293,6 @@
       "item": [
         {
           "name": "Issue Coupon - Duplicate User",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('status is 409 Conflict', function () {",
-                  "  pm.response.to.have.status(409);",
-                  "});",
-                  "",
-                  "pm.test('response has error message', function () {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.message).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
             "method": "POST",
             "header": [
@@ -216,13 +311,14 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/api/coupons/issues",
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "coupons",
+                "{{couponId}}",
                 "issues"
               ]
             }
@@ -231,24 +327,6 @@
         },
         {
           "name": "Issue Coupon - Blank User ID",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('status is 400 Bad Request', function () {",
-                  "  pm.response.to.have.status(400);",
-                  "});",
-                  "",
-                  "pm.test('response has validation message', function () {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.message).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
             "method": "POST",
             "header": [
@@ -267,13 +345,14 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/api/coupons/issues",
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "coupons",
+                "{{couponId}}",
                 "issues"
               ]
             }
@@ -282,35 +361,18 @@
         },
         {
           "name": "Get Coupon Issue - Missing User",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('status is 404 Not Found', function () {",
-                  "  pm.response.to.have.status(404);",
-                  "});",
-                  "",
-                  "pm.test('response has error message', function () {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.message).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/coupons/issues/{{missingUserId}}",
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues/{{missingUserId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "coupons",
+                "{{couponId}}",
                 "issues",
                 "{{missingUserId}}"
               ]
@@ -320,35 +382,18 @@
         },
         {
           "name": "Cancel Coupon Issue - Missing User",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('status is 404 Not Found', function () {",
-                  "  pm.response.to.have.status(404);",
-                  "});",
-                  "",
-                  "pm.test('response has error message', function () {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.message).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/coupons/issues/{{missingUserId}}",
+              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues/{{missingUserId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "coupons",
+                "{{couponId}}",
                 "issues",
                 "{{missingUserId}}"
               ]

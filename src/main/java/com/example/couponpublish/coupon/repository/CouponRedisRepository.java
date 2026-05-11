@@ -1,6 +1,5 @@
 package com.example.couponpublish.coupon.repository;
 
-import com.example.couponpublish.coupon.config.CouponProperties;
 import java.util.List;
 import java.util.Set;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -10,54 +9,62 @@ import org.springframework.stereotype.Component;
 @Component
 public class CouponRedisRepository {
 
-    private static final String REMAINING_KEY = "coupon:remaining";
-    private static final String ISSUED_USERS_KEY = "coupon:issued-users";
+    private static final String REMAINING_KEY_FORMAT = "coupon:%d:remaining";
+    private static final String ISSUED_USERS_KEY_FORMAT = "coupon:%d:issued-users";
 
     private final StringRedisTemplate redisTemplate;
-    private final CouponProperties couponProperties;
     private final DefaultRedisScript<Long> issueScript;
     private final DefaultRedisScript<Long> cancelScript;
 
-    public CouponRedisRepository(StringRedisTemplate redisTemplate, CouponProperties couponProperties) {
+    public CouponRedisRepository(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
-        this.couponProperties = couponProperties;
         this.issueScript = new DefaultRedisScript<>(issueLua(), Long.class);
         this.cancelScript = new DefaultRedisScript<>(cancelLua(), Long.class);
     }
 
-    public IssueResult issue(String userId) {
+    public IssueResult issue(Long couponId, String userId, int maxCount) {
         Long result = redisTemplate.execute(
             issueScript,
-            List.of(REMAINING_KEY, ISSUED_USERS_KEY),
+            List.of(remainingKey(couponId), issuedUsersKey(couponId)),
             userId,
-            String.valueOf(couponProperties.maxCount())
+            String.valueOf(maxCount)
         );
         return IssueResult.from(result);
     }
 
-    public void rollbackIssue(String userId) {
-        redisTemplate.execute(cancelScript, List.of(REMAINING_KEY, ISSUED_USERS_KEY), userId);
+    public void rollbackIssue(Long couponId, String userId) {
+        redisTemplate.execute(cancelScript, List.of(remainingKey(couponId), issuedUsersKey(couponId)), userId);
     }
 
-    public void cancel(String userId) {
-        redisTemplate.execute(cancelScript, List.of(REMAINING_KEY, ISSUED_USERS_KEY), userId);
+    public void cancel(Long couponId, String userId) {
+        redisTemplate.execute(cancelScript, List.of(remainingKey(couponId), issuedUsersKey(couponId)), userId);
     }
 
-    public long getRemainingCount() {
-        String value = redisTemplate.opsForValue().get(REMAINING_KEY);
+    public long getRemainingCount(Long couponId, int maxCount) {
+        String value = redisTemplate.opsForValue().get(remainingKey(couponId));
         if (value == null) {
-            return couponProperties.maxCount();
+            return maxCount;
         }
         return Long.parseLong(value);
     }
 
-    public void resetFromActiveUsers(Set<String> activeUserIds) {
-        redisTemplate.delete(List.of(REMAINING_KEY, ISSUED_USERS_KEY));
-        int remaining = Math.max(couponProperties.maxCount() - activeUserIds.size(), 0);
-        redisTemplate.opsForValue().set(REMAINING_KEY, String.valueOf(remaining));
+    public void resetFromActiveUsers(Long couponId, int maxCount, Set<String> activeUserIds) {
+        String remainingKey = remainingKey(couponId);
+        String issuedUsersKey = issuedUsersKey(couponId);
+        redisTemplate.delete(List.of(remainingKey, issuedUsersKey));
+        int remaining = Math.max(maxCount - activeUserIds.size(), 0);
+        redisTemplate.opsForValue().set(remainingKey, String.valueOf(remaining));
         if (!activeUserIds.isEmpty()) {
-            redisTemplate.opsForSet().add(ISSUED_USERS_KEY, activeUserIds.toArray(String[]::new));
+            redisTemplate.opsForSet().add(issuedUsersKey, activeUserIds.toArray(String[]::new));
         }
+    }
+
+    private static String remainingKey(Long couponId) {
+        return REMAINING_KEY_FORMAT.formatted(couponId);
+    }
+
+    private static String issuedUsersKey(Long couponId) {
+        return ISSUED_USERS_KEY_FORMAT.formatted(couponId);
     }
 
     private static String issueLua() {
