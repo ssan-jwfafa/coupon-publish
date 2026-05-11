@@ -97,7 +97,7 @@ public class CouponService {
 
     @Transactional(readOnly = true)
     public CouponIssueResponse getIssue(Long couponId, String userId) {
-        CouponIssue couponIssue = couponIssueRepository.findByCouponIdAndUserId(couponId, userId)
+        CouponIssue couponIssue = couponIssueRepository.findByCoupon_IdAndUserId(couponId, userId)
             .orElseThrow(() -> new CouponException(HttpStatus.NOT_FOUND, "쿠폰 발급 내역이 없습니다."));
         return CouponIssueResponse.from(couponIssue);
     }
@@ -107,10 +107,10 @@ public class CouponService {
         getCouponOrThrow(couponId);
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "issuedAt"));
         if (status == null) {
-            return CouponIssuePageResponse.from(couponIssueRepository.findAllByCouponId(couponId, pageRequest));
+            return CouponIssuePageResponse.from(couponIssueRepository.findAllByCoupon_Id(couponId, pageRequest));
         }
         return CouponIssuePageResponse.from(
-            couponIssueRepository.findAllByCouponIdAndStatus(couponId, status, pageRequest)
+            couponIssueRepository.findAllByCoupon_IdAndStatus(couponId, status, pageRequest)
         );
     }
 

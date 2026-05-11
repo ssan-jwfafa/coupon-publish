@@ -70,7 +70,7 @@ class CouponServiceFeatureTest {
         );
         CouponIssue issue = CouponIssue.issue(coupon, "user-1");
         when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
-        when(couponIssueRepository.findAllByCouponIdAndStatus(eq(1L), eq(CouponStatus.ISSUED), any(Pageable.class)))
+        when(couponIssueRepository.findAllByCoupon_IdAndStatus(eq(1L), eq(CouponStatus.ISSUED), any(Pageable.class)))
             .thenReturn(new PageImpl<>(List.of(issue), PageRequest.of(0, 20), 1));
 
         var response = couponService.getIssues(1L, CouponStatus.ISSUED, 0, 20);

@@ -14,15 +14,15 @@ import org.springframework.data.repository.query.Param;
 
 public interface CouponIssueRepository extends JpaRepository<CouponIssue, Long> {
 
-    Page<CouponIssue> findAllByCouponId(Long couponId, Pageable pageable);
+    Page<CouponIssue> findAllByCoupon_Id(Long couponId, Pageable pageable);
 
-    Page<CouponIssue> findAllByCouponIdAndStatus(Long couponId, CouponStatus status, Pageable pageable);
+    Page<CouponIssue> findAllByCoupon_IdAndStatus(Long couponId, CouponStatus status, Pageable pageable);
 
-    List<CouponIssue> findAllByCouponIdAndStatus(Long couponId, CouponStatus status);
+    List<CouponIssue> findAllByCoupon_IdAndStatus(Long couponId, CouponStatus status);
 
-    long countByCouponIdAndStatus(Long couponId, CouponStatus status);
+    long countByCoupon_IdAndStatus(Long couponId, CouponStatus status);
 
-    Optional<CouponIssue> findByCouponIdAndUserId(Long couponId, String userId);
+    Optional<CouponIssue> findByCoupon_IdAndUserId(Long couponId, String userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from CouponIssue c where c.coupon.id = :couponId and c.userId = :userId")

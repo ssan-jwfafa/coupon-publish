@@ -29,7 +29,7 @@ public class CouponRedisInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         for (Coupon coupon : couponRepository.findAll()) {
-            var activeUserIds = couponIssueRepository.findAllByCouponIdAndStatus(coupon.getId(), CouponStatus.ISSUED)
+            var activeUserIds = couponIssueRepository.findAllByCoupon_IdAndStatus(coupon.getId(), CouponStatus.ISSUED)
                 .stream()
                 .map(issue -> issue.getUserId())
                 .collect(java.util.stream.Collectors.toSet());

@@ -96,7 +96,7 @@ class CouponServiceConcurrencyTest {
         long successCount = issueConcurrently(1_000, index -> "user-" + index);
 
         assertThat(successCount).isEqualTo(MAX_COUPON_COUNT);
-        assertThat(couponIssueRepository.countByCouponIdAndStatus(coupon.getId(), CouponStatus.ISSUED))
+        assertThat(couponIssueRepository.countByCoupon_IdAndStatus(coupon.getId(), CouponStatus.ISSUED))
             .isEqualTo(MAX_COUPON_COUNT);
         assertThat(couponRedisRepository.getRemainingCount(coupon.getId(), coupon.getMaxCount())).isZero();
     }
@@ -106,7 +106,7 @@ class CouponServiceConcurrencyTest {
         long successCount = issueConcurrently(100, ignored -> "same-user");
 
         assertThat(successCount).isOne();
-        assertThat(couponIssueRepository.countByCouponIdAndStatus(coupon.getId(), CouponStatus.ISSUED)).isOne();
+        assertThat(couponIssueRepository.countByCoupon_IdAndStatus(coupon.getId(), CouponStatus.ISSUED)).isOne();
         assertThat(couponRedisRepository.getRemainingCount(coupon.getId(), coupon.getMaxCount()))
             .isEqualTo(MAX_COUPON_COUNT - 1);
     }
