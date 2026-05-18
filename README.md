@@ -153,7 +153,7 @@ Redis가 장애 상태라면 발급을 진행하지 않습니다. Redis가 쿠�
 
 Docker가 설치되어 있어야 합니다.
 
-Redis, Kafka는 `docker-compose.yml`로 실행합니다.
+Redis, Redis UI, Kafka, Kafka UI는 `docker-compose.yml`로 실행합니다.
 
 ```bash
 docker compose up -d
@@ -183,6 +183,18 @@ Windows PowerShell:
 
 ```text
 http://localhost:8080
+```
+
+Kafka topic과 메시지는 Kafka UI에서 확인할 수 있습니다.
+
+```text
+http://localhost:8081
+```
+
+Redis key와 value는 Redis UI에서 확인할 수 있습니다.
+
+```text
+http://localhost:8082
 ```
 
 ## 설정

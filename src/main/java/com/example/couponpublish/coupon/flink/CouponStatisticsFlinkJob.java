@@ -2,7 +2,6 @@ package com.example.couponpublish.coupon.flink;
 
 import com.example.couponpublish.coupon.config.FlinkProperties;
 import com.example.couponpublish.coupon.config.KafkaTopicProperties;
-import com.example.couponpublish.coupon.event.CouponIssuedEvent;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
@@ -49,26 +48,41 @@ public class CouponStatisticsFlinkJob {
     }
 
     private void run() {
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                execute();
+            } catch (Exception ex) {
+                log.error("coupon statistics flink job stopped. retrying in 5 seconds", ex);
+                sleepBeforeRetry();
+            }
+        }
+    }
+
+    private void execute() throws Exception {
+        StreamExecutionEnvironment environment = StreamExecutionEnvironment.getExecutionEnvironment();
+        environment.setParallelism(1);
+
+        KafkaSource<CouponIssuedStatisticsEvent> source = KafkaSource.<CouponIssuedStatisticsEvent>builder()
+            .setBootstrapServers(bootstrapServers)
+            .setTopics(topicProperties.couponIssued())
+            .setGroupId(flinkProperties.consumerGroupId())
+            .setStartingOffsets(OffsetsInitializer.earliest())
+            .setValueOnlyDeserializer(new CouponIssuedEventDeserializationSchema())
+            .build();
+
+        environment.fromSource(source, WatermarkStrategy.noWatermarks(), "coupon-issued-source")
+            .keyBy(CouponIssuedStatisticsEvent::getCouponId)
+            .addSink(new RedisCouponStatisticsSink(redisHost, redisPort))
+            .name("redis-coupon-statistics-sink");
+
+        environment.execute("coupon-issued-statistics");
+    }
+
+    private void sleepBeforeRetry() {
         try {
-            StreamExecutionEnvironment environment = StreamExecutionEnvironment.getExecutionEnvironment();
-            environment.setParallelism(1);
-
-            KafkaSource<CouponIssuedEvent> source = KafkaSource.<CouponIssuedEvent>builder()
-                .setBootstrapServers(bootstrapServers)
-                .setTopics(topicProperties.couponIssued())
-                .setGroupId(flinkProperties.consumerGroupId())
-                .setStartingOffsets(OffsetsInitializer.earliest())
-                .setValueOnlyDeserializer(new CouponIssuedEventDeserializationSchema())
-                .build();
-
-            environment.fromSource(source, WatermarkStrategy.noWatermarks(), "coupon-issued-source")
-                .keyBy(CouponIssuedEvent::couponId)
-                .addSink(new RedisCouponStatisticsSink(redisHost, redisPort))
-                .name("redis-coupon-statistics-sink");
-
-            environment.execute("coupon-issued-statistics");
-        } catch (Exception ex) {
-            log.error("coupon statistics flink job stopped", ex);
+            Thread.sleep(5_000);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
         }
     }
 }

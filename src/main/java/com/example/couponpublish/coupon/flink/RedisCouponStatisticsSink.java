@@ -1,12 +1,11 @@
 package com.example.couponpublish.coupon.flink;
 
-import com.example.couponpublish.coupon.event.CouponIssuedEvent;
 import java.time.LocalDateTime;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import redis.clients.jedis.Jedis;
 
-public class RedisCouponStatisticsSink extends RichSinkFunction<CouponIssuedEvent> {
+public class RedisCouponStatisticsSink extends RichSinkFunction<CouponIssuedStatisticsEvent> {
 
     private static final String STATISTICS_KEY_FORMAT = "coupon:%d:statistics";
     private static final String STATISTICS_EVENTS_KEY_FORMAT = "coupon:%d:statistics-events";
@@ -26,17 +25,17 @@ public class RedisCouponStatisticsSink extends RichSinkFunction<CouponIssuedEven
     }
 
     @Override
-    public void invoke(CouponIssuedEvent event, Context context) {
+    public void invoke(CouponIssuedStatisticsEvent event, Context context) {
         String eventId = eventId(event);
-        String eventsKey = statisticsEventsKey(event.couponId());
+        String eventsKey = statisticsEventsKey(event.getCouponId());
         Long added = jedis.sadd(eventsKey, eventId);
         if (added == null || added == 0) {
             return;
         }
 
-        String statisticsKey = statisticsKey(event.couponId());
+        String statisticsKey = statisticsKey(event.getCouponId());
         jedis.hincrBy(statisticsKey, "issuedCount", 1);
-        updateLastIssuedAt(statisticsKey, event.issuedAt());
+        updateLastIssuedAt(statisticsKey, LocalDateTime.parse(event.getIssuedAt()));
         jedis.hset(statisticsKey, "updatedAt", LocalDateTime.now().toString());
     }
 
@@ -54,11 +53,11 @@ public class RedisCouponStatisticsSink extends RichSinkFunction<CouponIssuedEven
         }
     }
 
-    private static String eventId(CouponIssuedEvent event) {
-        if (event.couponIssueId() != null) {
-            return String.valueOf(event.couponIssueId());
+    private static String eventId(CouponIssuedStatisticsEvent event) {
+        if (event.getCouponIssueId() != null) {
+            return String.valueOf(event.getCouponIssueId());
         }
-        return event.couponId() + ":" + event.userId() + ":" + event.issuedAt();
+        return event.getCouponId() + ":" + event.getUserId() + ":" + event.getIssuedAt();
     }
 
     private static String statisticsKey(Long couponId) {

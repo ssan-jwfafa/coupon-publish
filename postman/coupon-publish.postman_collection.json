@@ -1,427 +1,245 @@
 {
   "info": {
     "_postman_id": "e9c6285e-3b4a-4d3e-8fd6-0f3e06e1e141",
-    "name": "Coupon Publish API",
-    "description": "Postman collection for the Coupon Publish Spring Boot API.",
+    "name": "Coupon Publish API - Redis Kafka Flink",
+    "description": "쿠폰 생성, 발급, Redis 남은 수량 조회, Flink Redis 집계 조회를 확인하는 최소 Postman 컬렉션입니다.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:8080"
-    },
-    {
-      "key": "couponId",
-      "value": "1"
-    },
-    {
-      "key": "userId",
-      "value": "user-1"
-    },
-    {
-      "key": "missingUserId",
-      "value": "missing-user"
-    }
-  ],
   "item": [
     {
-      "name": "Happy Path",
-      "item": [
+      "name": "01. 쿠폰 생성",
+      "event": [
         {
-          "name": "Create Coupon Campaign",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('status is 201 Created', function () {",
-                  "  pm.response.to.have.status(201);",
-                  "});",
-                  "",
-                  "pm.test('response has coupon id', function () {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.couponId).to.exist;",
-                  "  pm.collectionVariables.set('couponId', body.couponId);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Welcome Coupon\",\n  \"maxCount\": 100,\n  \"startAt\": \"2026-01-01T00:00:00\",\n  \"endAt\": \"2026-12-31T23:59:59\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons"
-              ]
-            }
-          },
-          "response": []
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const now = new Date();",
+              "const startAt = new Date(now.getTime() - 60 * 1000);",
+              "const endAt = new Date(now);",
+              "endAt.setFullYear(endAt.getFullYear() + 1);",
+              "const format = (date) => date.toISOString().slice(0, 19);",
+              "pm.variables.set('couponName', `postman-coupon-${Date.now()}`);",
+              "pm.variables.set('startAt', format(startAt));",
+              "pm.variables.set('endAt', format(endAt));"
+            ]
+          }
         },
         {
-          "name": "Get Coupon Campaign",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Remaining Coupons",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/remaining",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "remaining"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Issue Coupon",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('status is 201 Created', function () {",
-                  "  pm.response.to.have.status(201);",
-                  "});",
-                  "",
-                  "pm.test('response has issued coupon', function () {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.couponId).to.eql(Number(pm.collectionVariables.get('couponId') || pm.variables.get('couponId')));",
-                  "  pm.expect(body.userId).to.eql(pm.variables.get('userId'));",
-                  "  pm.expect(body.status).to.eql('ISSUED');",
-                  "  pm.expect(body.couponIssueId).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"userId\": \"{{userId}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "issues"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Coupon Issue",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('status is 200 OK', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test('response has requested user', function () {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.userId).to.eql(pm.variables.get('userId'));",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues/{{userId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "issues",
-                "{{userId}}"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Coupon Issues",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues?status=ISSUED&page=0&size=20",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "issues"
-              ],
-              "query": [
-                {
-                  "key": "status",
-                  "value": "ISSUED"
-                },
-                {
-                  "key": "page",
-                  "value": "0"
-                },
-                {
-                  "key": "size",
-                  "value": "20"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Coupon Issue Statistics",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/statistics",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "statistics"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Cancel Coupon Issue",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('status is 200 OK', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test('coupon is canceled', function () {",
-                  "  const body = pm.response.json();",
-                  "  pm.expect(body.userId).to.eql(pm.variables.get('userId'));",
-                  "  pm.expect(body.status).to.eql('CANCELED');",
-                  "  pm.expect(body.canceledAt).to.exist;",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues/{{userId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "issues",
-                "{{userId}}"
-              ]
-            }
-          },
-          "response": []
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('couponId 저장', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.couponId).to.exist;",
+              "  pm.environment.set('couponId', body.couponId);",
+              "});"
+            ]
+          }
         }
-      ]
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"{{couponName}}\",\n  \"maxCount\": 5,\n  \"startAt\": \"{{startAt}}\",\n  \"endAt\": \"{{endAt}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/coupons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "coupons"
+          ]
+        }
+      },
+      "response": []
     },
     {
-      "name": "Error Cases",
-      "item": [
+      "name": "02. 쿠폰 단건 조회",
+      "event": [
         {
-          "name": "Issue Coupon - Duplicate User",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"userId\": \"{{userId}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "issues"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Issue Coupon - Blank User ID",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"userId\": \"\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "issues"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Coupon Issue - Missing User",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues/{{missingUserId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "issues",
-                "{{missingUserId}}"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Cancel Coupon Issue - Missing User",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues/{{missingUserId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "coupons",
-                "{{couponId}}",
-                "issues",
-                "{{missingUserId}}"
-              ]
-            }
-          },
-          "response": []
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('couponId 확인', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(String(body.couponId)).to.eql(String(pm.environment.get('couponId')));",
+              "});"
+            ]
+          }
         }
-      ]
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/coupons/{{couponId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "coupons",
+            "{{couponId}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "03. 쿠폰 발급",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test('발급 상태 확인', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.userId).to.eql(pm.environment.get('userId'));",
+              "  pm.expect(body.status).to.eql('ISSUED');",
+              "  pm.expect(body.couponIssueId).to.exist;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userId\": \"{{userId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/coupons/{{couponId}}/issues",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "coupons",
+            "{{couponId}}",
+            "issues"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "04. 남은 수량 조회",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('남은 수량은 4', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.remainingCount).to.eql(4);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/coupons/{{couponId}}/remaining",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "coupons",
+            "{{couponId}}",
+            "remaining"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "05. 발급 집계 조회",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('집계 응답 구조 확인', function () {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.couponId).to.exist;",
+              "  pm.expect(body.issuedCount).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/coupons/{{couponId}}/statistics",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "coupons",
+            "{{couponId}}",
+            "statistics"
+          ]
+        }
+      },
+      "response": []
     }
   ]
 }
