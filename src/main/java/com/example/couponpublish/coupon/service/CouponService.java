@@ -16,12 +16,10 @@ import com.example.couponpublish.coupon.repository.CouponRedisRepository;
 import com.example.couponpublish.coupon.repository.CouponRedisRepository.IssueResult;
 import com.example.couponpublish.coupon.repository.CouponRepository;
 import java.time.LocalDateTime;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CouponService {
@@ -43,7 +41,6 @@ public class CouponService {
         this.couponEventPublisher = couponEventPublisher;
     }
 
-    @Transactional
     public CouponResponse createCoupon(CouponCreateRequest request) {
         Coupon coupon;
         try {
@@ -54,12 +51,10 @@ public class CouponService {
         return CouponResponse.from(couponRepository.save(coupon));
     }
 
-    @Transactional(readOnly = true)
     public CouponResponse getCoupon(Long couponId) {
         return CouponResponse.from(getCouponOrThrow(couponId));
     }
 
-    @Transactional
     public CouponIssueResponse issue(Long couponId, String userId) {
         Coupon coupon = getCouponOrThrow(couponId);
         validateIssuePeriod(coupon);
@@ -86,23 +81,21 @@ public class CouponService {
             CouponIssue saved = couponIssueRepository.save(couponIssue);
             couponEventPublisher.publishIssued(CouponIssuedEvent.from(saved));
             return CouponIssueResponse.from(saved);
-        } catch (CouponException | DataIntegrityViolationException ex) {
+        } catch (RuntimeException ex) {
             couponRedisRepository.rollbackIssue(coupon.getId(), userId);
             if (ex instanceof CouponException couponException) {
                 throw couponException;
             }
-            throw new CouponException(HttpStatus.CONFLICT, "이미 발급된 사용자입니다.");
+            throw ex;
         }
     }
 
-    @Transactional(readOnly = true)
     public CouponIssueResponse getIssue(Long couponId, String userId) {
         CouponIssue couponIssue = couponIssueRepository.findByCoupon_IdAndUserId(couponId, userId)
             .orElseThrow(() -> new CouponException(HttpStatus.NOT_FOUND, "쿠폰 발급 내역이 없습니다."));
         return CouponIssueResponse.from(couponIssue);
     }
 
-    @Transactional(readOnly = true)
     public CouponIssuePageResponse getIssues(Long couponId, CouponStatus status, int page, int size) {
         getCouponOrThrow(couponId);
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "issuedAt"));
@@ -114,13 +107,11 @@ public class CouponService {
         );
     }
 
-    @Transactional(readOnly = true)
     public CouponRemainingResponse getRemainingCount(Long couponId) {
         Coupon coupon = getCouponOrThrow(couponId);
         return new CouponRemainingResponse(couponRedisRepository.getRemainingCount(coupon.getId(), coupon.getMaxCount()));
     }
 
-    @Transactional
     public CouponIssueResponse cancel(Long couponId, String userId) {
         CouponIssue couponIssue = couponIssueRepository.findByCouponIdAndUserIdForUpdate(couponId, userId)
             .orElseThrow(() -> new CouponException(HttpStatus.NOT_FOUND, "쿠폰 발급 내역이 없습니다."));
@@ -130,6 +121,7 @@ public class CouponService {
         }
 
         couponIssue.cancel();
+        couponIssueRepository.save(couponIssue);
         couponRedisRepository.cancel(couponId, userId);
         return CouponIssueResponse.from(couponIssue);
     }

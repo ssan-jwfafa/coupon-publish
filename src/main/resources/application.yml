@@ -1,17 +1,6 @@
 spring:
   application:
     name: coupon-publish
-  datasource:
-    url: jdbc:mysql://localhost:3306/coupon_publish?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: coupon
-    password: coupon
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        format_sql: true
-    open-in-view: false
   data:
     redis:
       host: localhost
@@ -36,3 +25,6 @@ coupon:
     enabled: true
     topics:
       coupon-issued: coupon-issued
+  flink:
+    enabled: true
+    consumer-group-id: coupon-flink-statistics

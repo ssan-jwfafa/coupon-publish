@@ -1,67 +1,36 @@
 package com.example.couponpublish.coupon.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
-import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Getter
-@Entity
-@Table(
-    name = "coupon_issue",
-    uniqueConstraints = {
-        @UniqueConstraint(name = "uk_coupon_issue_coupon_id_user_id", columnNames = {"coupon_id", "user_id"})
-    }
-)
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CouponIssue {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "coupon_id", nullable = false)
-    private Coupon coupon;
-
-    @Column(name = "user_id", nullable = false, length = 64)
+    private Long couponId;
     private String userId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
     private CouponStatus status;
-
-    @Column(name = "issued_at", nullable = false)
     private LocalDateTime issuedAt;
-
-    @Column(name = "canceled_at")
     private LocalDateTime canceledAt;
 
-    private CouponIssue(Coupon coupon, String userId) {
-        this.coupon = coupon;
-        this.userId = userId;
-        this.status = CouponStatus.ISSUED;
-        this.issuedAt = LocalDateTime.now();
+    protected CouponIssue() {
     }
 
-    public Long getCouponId() {
-        return coupon.getId();
+    private CouponIssue(Long id, Long couponId, String userId, CouponStatus status, LocalDateTime issuedAt, LocalDateTime canceledAt) {
+        this.id = id;
+        this.couponId = couponId;
+        this.userId = userId;
+        this.status = status;
+        this.issuedAt = issuedAt;
+        this.canceledAt = canceledAt;
     }
 
     public static CouponIssue issue(Coupon coupon, String userId) {
-        return new CouponIssue(coupon, userId);
+        return new CouponIssue(null, coupon.getId(), userId, CouponStatus.ISSUED, LocalDateTime.now(), null);
+    }
+
+    public CouponIssue withId(Long id) {
+        return new CouponIssue(id, couponId, userId, status, issuedAt, canceledAt);
     }
 
     public void reissue() {

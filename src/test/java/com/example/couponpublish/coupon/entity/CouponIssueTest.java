@@ -12,7 +12,7 @@ class CouponIssueTest {
         Coupon coupon = activeCoupon();
         CouponIssue couponIssue = CouponIssue.issue(coupon, "user-1");
 
-        assertThat(couponIssue.getCoupon()).isEqualTo(coupon);
+        assertThat(couponIssue.getCouponId()).isEqualTo(coupon.getId());
         assertThat(couponIssue.getUserId()).isEqualTo("user-1");
         assertThat(couponIssue.getStatus()).isEqualTo(CouponStatus.ISSUED);
         assertThat(couponIssue.getIssuedAt()).isNotNull();
@@ -46,6 +46,6 @@ class CouponIssueTest {
             100,
             LocalDateTime.now().minusMinutes(1),
             LocalDateTime.now().plusHours(1)
-        );
+        ).withId(1L);
     }
 }

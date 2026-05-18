@@ -1,18 +1,53 @@
 package com.example.couponpublish.coupon.repository;
 
 import com.example.couponpublish.coupon.entity.CouponIssueStatistics;
-import jakarta.persistence.LockModeType;
+import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Component;
 
-public interface CouponIssueStatisticsRepository extends JpaRepository<CouponIssueStatistics, Long> {
+@Component
+public class CouponIssueStatisticsRepository {
 
-    Optional<CouponIssueStatistics> findByCouponId(Long couponId);
+    private static final String STATISTICS_KEY_FORMAT = "coupon:%d:statistics";
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select s from CouponIssueStatistics s where s.couponId = :couponId")
-    Optional<CouponIssueStatistics> findByCouponIdForUpdate(@Param("couponId") Long couponId);
+    private final StringRedisTemplate redisTemplate;
+
+    public CouponIssueStatisticsRepository(StringRedisTemplate redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
+
+    public Optional<CouponIssueStatistics> findByCouponId(Long couponId) {
+        Map<Object, Object> values = redisTemplate.opsForHash().entries(statisticsKey(couponId));
+        if (values.isEmpty()) {
+            return Optional.empty();
+        }
+
+        String lastIssuedAt = string(values, "lastIssuedAt");
+        String updatedAt = string(values, "updatedAt");
+        return Optional.of(new CouponIssueStatistics(
+            couponId,
+            Long.parseLong(string(values, "issuedCount")),
+            lastIssuedAt == null ? null : LocalDateTime.parse(lastIssuedAt),
+            updatedAt == null ? null : LocalDateTime.parse(updatedAt)
+        ));
+    }
+
+    public void save(CouponIssueStatistics statistics) {
+        redisTemplate.opsForHash().putAll(statisticsKey(statistics.getCouponId()), Map.of(
+            "issuedCount", String.valueOf(statistics.getIssuedCount()),
+            "lastIssuedAt", statistics.getLastIssuedAt().toString(),
+            "updatedAt", statistics.getUpdatedAt().toString()
+        ));
+    }
+
+    private static String string(Map<Object, Object> values, String key) {
+        Object value = values.get(key);
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private static String statisticsKey(Long couponId) {
+        return STATISTICS_KEY_FORMAT.formatted(couponId);
+    }
 }

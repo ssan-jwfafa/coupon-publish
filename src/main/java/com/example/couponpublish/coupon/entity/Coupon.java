@@ -1,39 +1,23 @@
 package com.example.couponpublish.coupon.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Getter
-@Entity
-@Table(name = "coupon")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Coupon {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(name = "max_count", nullable = false)
     private int maxCount;
 
-    @Column(name = "start_at", nullable = false)
     private LocalDateTime startAt;
 
-    @Column(name = "end_at", nullable = false)
     private LocalDateTime endAt;
 
-    private Coupon(String name, int maxCount, LocalDateTime startAt, LocalDateTime endAt) {
+    private Coupon(Long id, String name, int maxCount, LocalDateTime startAt, LocalDateTime endAt) {
+        this.id = id;
         this.name = name;
         this.maxCount = maxCount;
         this.startAt = startAt;
@@ -44,7 +28,11 @@ public class Coupon {
         if (!startAt.isBefore(endAt)) {
             throw new IllegalArgumentException("쿠폰 시작 시간은 종료 시간보다 빨라야 합니다.");
         }
-        return new Coupon(name, maxCount, startAt, endAt);
+        return new Coupon(null, name, maxCount, startAt, endAt);
+    }
+
+    public Coupon withId(Long id) {
+        return new Coupon(id, name, maxCount, startAt, endAt);
     }
 
     public boolean isBeforeIssuePeriod(LocalDateTime now) {

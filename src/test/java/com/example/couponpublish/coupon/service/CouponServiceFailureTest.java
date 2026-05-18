@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -45,17 +44,17 @@ class CouponServiceFailureTest {
     CouponService couponService;
 
     @Test
-    void rollbackRedisWhenDatabaseSaveFailsAfterRedisIssueSucceeds() {
+    void rollbackRedisWhenIssueHistorySaveFailsAfterRedisIssueSucceeds() {
         Coupon coupon = activeCoupon();
         when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
         when(couponRedisRepository.issue(1L, "user-1", 100)).thenReturn(IssueResult.SUCCESS);
         when(couponIssueRepository.findByCouponIdAndUserIdForUpdate(1L, "user-1")).thenReturn(Optional.empty());
         when(couponIssueRepository.save(any(CouponIssue.class)))
-            .thenThrow(new DataIntegrityViolationException("duplicated user id"));
+            .thenThrow(new IllegalStateException("redis write failed"));
 
         assertThatThrownBy(() -> couponService.issue(1L, "user-1"))
-            .isInstanceOf(CouponException.class)
-            .hasMessage("이미 발급된 사용자입니다.");
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessage("redis write failed");
 
         verify(couponRedisRepository).rollbackIssue(1L, "user-1");
     }
@@ -76,13 +75,11 @@ class CouponServiceFailureTest {
     }
 
     private static Coupon activeCoupon() {
-        Coupon coupon = Coupon.create(
+        return Coupon.create(
             "test coupon",
             100,
             LocalDateTime.now().minusMinutes(1),
             LocalDateTime.now().plusHours(1)
-        );
-        org.springframework.test.util.ReflectionTestUtils.setField(coupon, "id", 1L);
-        return coupon;
+        ).withId(1L);
     }
 }

@@ -27,7 +27,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class CouponServiceFeatureTest {
@@ -81,8 +80,6 @@ class CouponServiceFeatureTest {
     }
 
     private static Coupon coupon(LocalDateTime startAt, LocalDateTime endAt) {
-        Coupon coupon = Coupon.create("test coupon", 100, startAt, endAt);
-        ReflectionTestUtils.setField(coupon, "id", 1L);
-        return coupon;
+        return Coupon.create("test coupon", 100, startAt, endAt).withId(1L);
     }
 }
