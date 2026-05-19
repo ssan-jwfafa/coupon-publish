@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
 
 @Configuration
-@EnableConfigurationProperties({KafkaTopicProperties.class, FlinkProperties.class})
+@EnableConfigurationProperties(KafkaTopicProperties.class)
 public class CouponConfig {
 
     @Bean

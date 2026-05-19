@@ -41,3 +41,13 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.register('runCouponStatisticsFlinkJob', JavaExec) {
+	group = 'application'
+	description = 'Runs the coupon-issued Kafka to Redis statistics Flink job.'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'com.example.couponpublish.coupon.flink.CouponStatisticsFlinkJob'
+	systemProperties System.getProperties().findAll { key, value ->
+		key.toString().startsWith('coupon.flink.')
+	}
+}

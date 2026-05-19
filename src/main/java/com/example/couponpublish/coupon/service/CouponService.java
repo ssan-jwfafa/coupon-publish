@@ -12,10 +12,12 @@ import com.example.couponpublish.coupon.event.CouponEventPublisher;
 import com.example.couponpublish.coupon.event.CouponIssuedEvent;
 import com.example.couponpublish.coupon.exception.CouponException;
 import com.example.couponpublish.coupon.repository.CouponIssueRepository;
+import com.example.couponpublish.coupon.repository.CouponIssueStatisticsRepository;
 import com.example.couponpublish.coupon.repository.CouponRedisRepository;
 import com.example.couponpublish.coupon.repository.CouponRedisRepository.IssueResult;
 import com.example.couponpublish.coupon.repository.CouponRepository;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -26,17 +28,20 @@ public class CouponService {
 
     private final CouponRepository couponRepository;
     private final CouponIssueRepository couponIssueRepository;
+    private final CouponIssueStatisticsRepository couponIssueStatisticsRepository;
     private final CouponRedisRepository couponRedisRepository;
     private final CouponEventPublisher couponEventPublisher;
 
     public CouponService(
         CouponRepository couponRepository,
         CouponIssueRepository couponIssueRepository,
+        CouponIssueStatisticsRepository couponIssueStatisticsRepository,
         CouponRedisRepository couponRedisRepository,
         CouponEventPublisher couponEventPublisher
     ) {
         this.couponRepository = couponRepository;
         this.couponIssueRepository = couponIssueRepository;
+        this.couponIssueStatisticsRepository = couponIssueStatisticsRepository;
         this.couponRedisRepository = couponRedisRepository;
         this.couponEventPublisher = couponEventPublisher;
     }
@@ -53,6 +58,20 @@ public class CouponService {
 
     public CouponResponse getCoupon(Long couponId) {
         return CouponResponse.from(getCouponOrThrow(couponId));
+    }
+
+    public List<CouponResponse> getCoupons() {
+        return couponRepository.findAll().stream()
+            .map(CouponResponse::from)
+            .toList();
+    }
+
+    public void deleteCoupon(Long couponId) {
+        getCouponOrThrow(couponId);
+        couponIssueRepository.deleteAllByCouponId(couponId);
+        couponIssueStatisticsRepository.deleteByCouponId(couponId);
+        couponRedisRepository.deleteCouponState(couponId);
+        couponRepository.deleteById(couponId);
     }
 
     public CouponIssueResponse issue(Long couponId, String userId) {

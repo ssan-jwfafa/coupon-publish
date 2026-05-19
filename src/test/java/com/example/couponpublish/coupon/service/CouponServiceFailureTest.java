@@ -13,6 +13,7 @@ import com.example.couponpublish.coupon.entity.CouponIssue;
 import com.example.couponpublish.coupon.event.CouponEventPublisher;
 import com.example.couponpublish.coupon.exception.CouponException;
 import com.example.couponpublish.coupon.repository.CouponIssueRepository;
+import com.example.couponpublish.coupon.repository.CouponIssueStatisticsRepository;
 import com.example.couponpublish.coupon.repository.CouponRedisRepository;
 import com.example.couponpublish.coupon.repository.CouponRedisRepository.IssueResult;
 import com.example.couponpublish.coupon.repository.CouponRepository;
@@ -33,6 +34,9 @@ class CouponServiceFailureTest {
 
     @Mock
     CouponIssueRepository couponIssueRepository;
+
+    @Mock
+    CouponIssueStatisticsRepository couponIssueStatisticsRepository;
 
     @Mock
     CouponRedisRepository couponRedisRepository;

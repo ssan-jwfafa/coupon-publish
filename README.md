@@ -26,7 +26,7 @@ Spring Boot, Gradle, Redis, Kafka, Apache Flink를 사용한 쿠폰 발급 프�
 
 ## 주요 기능
 
-- 쿠폰 캠페인 생성 및 조회
+- 쿠폰 캠페인 생성, 조회, 삭제
 - 쿠폰별 발급 기간 관리
 - 쿠폰별 발급
 - 쿠폰별 발급 내역 단건/목록 조회
@@ -47,7 +47,6 @@ src/main/java/com/example/couponpublish
 └── coupon
     ├── config
     │   ├── CouponConfig.java
-    │   ├── FlinkProperties.java
     │   └── KafkaTopicProperties.java
     ├── controller
     │   └── CouponController.java
@@ -104,6 +103,8 @@ Redis는 Lua Script 실행 중 다른 명령이 끼어들지 않으므로, 위 �
 발급 성공 후 발급 이력도 Redis에 저장합니다. 쿠폰별 중복 발급 방지와 남은 수량 차감은 Lua Script에서 함께 처리되므로 Redis 기준으로 한 번에 성공하거나 실패합니다.
 
 발급 이력이 Redis에 저장되면 `CouponIssuedEvent`를 Kafka `coupon-issued` topic으로 발행합니다. Flink job은 이 topic을 읽고 Redis `coupon:{couponId}:statistics`에 발급 수와 마지막 발급 시각을 반영합니다.
+
+Spring Boot API 서버와 Flink job은 별도 프로세스로 실행합니다. API 서버는 요청 처리와 Kafka 발행까지만 담당하고, Flink job은 Kafka topic을 계속 구독하면서 Redis 집계만 담당합니다.
 
 전체 발급 흐름은 다음과 같습니다.
 
@@ -185,6 +186,37 @@ Windows PowerShell:
 http://localhost:8080
 ```
 
+## Flink 집계 Job 실행
+
+쿠폰 발급 집계가 필요하면 API 서버와 별도로 Flink job을 실행합니다.
+
+macOS/Linux:
+
+```bash
+./gradlew runCouponStatisticsFlinkJob
+```
+
+Windows PowerShell:
+
+```powershell
+.\gradlew.bat runCouponStatisticsFlinkJob
+```
+
+로컬 기본값은 다음과 같습니다.
+
+```text
+Kafka bootstrap servers: localhost:9092
+Kafka topic: coupon-issued
+Flink consumer group: coupon-flink-statistics
+Redis: localhost:6379
+```
+
+다른 주소를 쓰려면 system property로 넘길 수 있습니다.
+
+```powershell
+.\gradlew.bat -Dcoupon.flink.kafka.bootstrap-servers=localhost:9092 -Dcoupon.flink.redis.host=localhost -Dcoupon.flink.redis.port=6379 runCouponStatisticsFlinkJob
+```
+
 Kafka topic과 메시지는 Kafka UI에서 확인할 수 있습니다.
 
 ```text
@@ -215,12 +247,9 @@ coupon:
     enabled: true
     topics:
       coupon-issued: coupon-issued
-  flink:
-    enabled: true
-    consumer-group-id: coupon-flink-statistics
 ```
 
-`coupon.kafka.enabled=false`로 설정하면 Kafka producer bean 대신 no-op publisher를 사용합니다. `coupon.flink.enabled=false`로 설정하면 내장 Flink 집계 job을 시작하지 않습니다. 테스트에서는 Kafka/Flink 없이 실행되도록 두 값을 `false`로 둡니다.
+`coupon.kafka.enabled=false`로 설정하면 Kafka producer bean 대신 no-op publisher를 사용합니다. 테스트에서는 Kafka 없이 실행되도록 이 값을 `false`로 둡니다.
 
 ## Kafka 이벤트
 
@@ -286,6 +315,49 @@ GET /api/coupons/1
   "startAt": "2026-05-06T10:00:00",
   "endAt": "2026-05-31T23:59:59"
 }
+```
+
+### 쿠폰 캠페인 목록 조회
+
+최신 생성 쿠폰이 먼저 오도록 `couponId` 내림차순으로 반환합니다.
+
+```http
+GET /api/coupons
+```
+
+응답 예시:
+
+```json
+[
+  {
+    "couponId": 2,
+    "name": "신규 쿠폰",
+    "maxCount": 50,
+    "startAt": "2026-05-18T10:00:00",
+    "endAt": "2026-12-31T23:59:59"
+  },
+  {
+    "couponId": 1,
+    "name": "웰컴 쿠폰",
+    "maxCount": 100,
+    "startAt": "2026-05-06T10:00:00",
+    "endAt": "2026-05-31T23:59:59"
+  }
+]
+```
+
+### 쿠폰 캠페인 삭제
+
+쿠폰 메타데이터, 남은 수량, 발급 사용자 Set, 발급 이력, 집계 현황을 Redis에서 함께 삭제합니다.
+
+```http
+DELETE /api/coupons/1
+```
+
+응답:
+
+```http
+204 No Content
 ```
 
 ### 쿠폰 발급

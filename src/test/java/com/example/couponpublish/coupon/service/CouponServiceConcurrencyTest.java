@@ -65,7 +65,6 @@ class CouponServiceConcurrencyTest {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", redis::getFirstMappedPort);
         registry.add("coupon.kafka.enabled", () -> false);
-        registry.add("coupon.flink.enabled", () -> false);
     }
 
     @BeforeEach

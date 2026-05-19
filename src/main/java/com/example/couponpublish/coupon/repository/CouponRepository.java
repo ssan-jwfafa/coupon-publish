@@ -1,6 +1,7 @@
 package com.example.couponpublish.coupon.repository;
 
 import com.example.couponpublish.coupon.entity.Coupon;
+import java.util.Comparator;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,7 @@ public class CouponRepository {
         return redisTemplate.opsForSet().members(COUPON_IDS_KEY).stream()
             .map(Long::valueOf)
             .flatMap(couponId -> findById(couponId).stream())
+            .sorted(Comparator.comparing(Coupon::getId).reversed())
             .toList();
     }
 
@@ -64,6 +66,11 @@ public class CouponRepository {
         }
         redisTemplate.delete(COUPON_IDS_KEY);
         redisTemplate.delete(COUPON_ID_SEQUENCE_KEY);
+    }
+
+    public void deleteById(Long couponId) {
+        redisTemplate.delete(couponKey(couponId));
+        redisTemplate.opsForSet().remove(COUPON_IDS_KEY, String.valueOf(couponId));
     }
 
     private static Coupon toCoupon(Map<Object, Object> values) {

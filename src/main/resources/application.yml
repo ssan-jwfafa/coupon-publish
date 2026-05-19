@@ -25,6 +25,3 @@ coupon:
     enabled: true
     topics:
       coupon-issued: coupon-issued
-  flink:
-    enabled: true
-    consumer-group-id: coupon-flink-statistics

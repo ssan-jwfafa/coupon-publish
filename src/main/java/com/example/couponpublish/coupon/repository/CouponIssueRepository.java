@@ -86,6 +86,10 @@ public class CouponIssueRepository {
         redisTemplate.delete(ISSUE_ID_SEQUENCE_KEY);
     }
 
+    public void deleteAllByCouponId(Long couponId) {
+        redisTemplate.delete(List.of(issueHashKey(couponId), issueIndexKey(couponId)));
+    }
+
     private List<CouponIssue> allIssues(Long couponId) {
         return redisTemplate.opsForHash().values(issueHashKey(couponId)).stream()
             .map(value -> read(String.valueOf(value)))

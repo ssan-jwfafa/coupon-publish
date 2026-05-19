@@ -14,6 +14,7 @@ import com.example.couponpublish.coupon.entity.CouponStatus;
 import com.example.couponpublish.coupon.event.CouponEventPublisher;
 import com.example.couponpublish.coupon.exception.CouponException;
 import com.example.couponpublish.coupon.repository.CouponIssueRepository;
+import com.example.couponpublish.coupon.repository.CouponIssueStatisticsRepository;
 import com.example.couponpublish.coupon.repository.CouponRedisRepository;
 import com.example.couponpublish.coupon.repository.CouponRepository;
 import java.time.LocalDateTime;
@@ -36,6 +37,9 @@ class CouponServiceFeatureTest {
 
     @Mock
     CouponIssueRepository couponIssueRepository;
+
+    @Mock
+    CouponIssueStatisticsRepository couponIssueStatisticsRepository;
 
     @Mock
     CouponRedisRepository couponRedisRepository;
@@ -77,6 +81,45 @@ class CouponServiceFeatureTest {
         assertThat(response.contents()).hasSize(1);
         assertThat(response.contents().getFirst().userId()).isEqualTo("user-1");
         assertThat(response.totalElements()).isOne();
+    }
+
+    @Test
+    void getCoupons() {
+        Coupon coupon1 = Coupon.create(
+            "coupon-1",
+            100,
+            LocalDateTime.now().minusMinutes(1),
+            LocalDateTime.now().plusHours(1)
+        ).withId(1L);
+        Coupon coupon2 = Coupon.create(
+            "coupon-2",
+            50,
+            LocalDateTime.now().minusMinutes(1),
+            LocalDateTime.now().plusHours(1)
+        ).withId(2L);
+        when(couponRepository.findAll()).thenReturn(List.of(coupon2, coupon1));
+
+        var response = couponService.getCoupons();
+
+        assertThat(response).hasSize(2);
+        assertThat(response.getFirst().couponId()).isEqualTo(2L);
+        assertThat(response.getFirst().name()).isEqualTo("coupon-2");
+    }
+
+    @Test
+    void deleteCouponRemovesCouponRelatedRedisData() {
+        Coupon coupon = coupon(
+            LocalDateTime.now().minusMinutes(1),
+            LocalDateTime.now().plusHours(1)
+        );
+        when(couponRepository.findById(1L)).thenReturn(Optional.of(coupon));
+
+        couponService.deleteCoupon(1L);
+
+        verify(couponIssueRepository).deleteAllByCouponId(1L);
+        verify(couponIssueStatisticsRepository).deleteByCouponId(1L);
+        verify(couponRedisRepository).deleteCouponState(1L);
+        verify(couponRepository).deleteById(1L);
     }
 
     private static Coupon coupon(LocalDateTime startAt, LocalDateTime endAt) {

@@ -59,6 +59,10 @@ public class CouponRedisRepository {
         }
     }
 
+    public void deleteCouponState(Long couponId) {
+        redisTemplate.delete(List.of(remainingKey(couponId), issuedUsersKey(couponId)));
+    }
+
     private static String remainingKey(Long couponId) {
         return REMAINING_KEY_FORMAT.formatted(couponId);
     }

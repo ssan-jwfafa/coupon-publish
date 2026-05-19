@@ -13,6 +13,7 @@ import com.example.couponpublish.coupon.service.CouponService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,6 +48,17 @@ public class CouponController {
     @GetMapping("/{couponId}")
     public CouponResponse getCoupon(@PathVariable Long couponId) {
         return couponService.getCoupon(couponId);
+    }
+
+    @GetMapping
+    public List<CouponResponse> getCoupons() {
+        return couponService.getCoupons();
+    }
+
+    @DeleteMapping("/{couponId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteCoupon(@PathVariable Long couponId) {
+        couponService.deleteCoupon(couponId);
     }
 
     @PostMapping("/{couponId}/issues")
