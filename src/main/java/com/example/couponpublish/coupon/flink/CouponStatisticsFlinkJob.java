@@ -71,7 +71,7 @@ public class CouponStatisticsFlinkJob {
 
         environment.fromSource(source, WatermarkStrategy.noWatermarks(), "coupon-issued-source")
             .keyBy(CouponIssuedStatisticsEvent::getCouponId)
-            .addSink(new RedisCouponStatisticsSink(redisHost, redisPort))
+            .sinkTo(new RedisCouponStatisticsSink(redisHost, redisPort))
             .name("redis-coupon-statistics-sink");
 
         environment.execute("coupon-issued-statistics");

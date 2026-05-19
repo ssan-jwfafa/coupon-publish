@@ -42,6 +42,10 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
+tasks.withType(JavaCompile).configureEach {
+	options.compilerArgs += ['-Xlint:deprecation']
+}
+
 tasks.register('runCouponStatisticsFlinkJob', JavaExec) {
 	group = 'application'
 	description = 'Runs the coupon-issued Kafka to Redis statistics Flink job.'
