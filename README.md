@@ -1,14 +1,16 @@
 # Coupon Publish
 
-Spring Boot, Gradle, Redis, Kafka, Apache Flink를 사용한 쿠폰 발급 프로젝트입니다.
+Spring Boot, Gradle, Redis, Kafka, Apache Flink를 사용한 쿠폰 발급 및 주문 관리 프로젝트입니다.
 
 동시에 여러 사용자가 쿠폰 발급을 요청해도 Redis Lua Script를 이용해 발급 수량 차감과 사용자 중복 발급 체크를 atomic 하게 처리합니다. 발급 성공 후에는 Kafka로 쿠폰 발급 이벤트를 발행하고, Flink가 이벤트를 소비해 Redis에 쿠폰별 집계 현황을 갱신합니다.
+
+주문 관리는 Redis에 주문 원본과 이벤트 로그를 저장하고, 주문 생성/상태 변경 이벤트를 Kafka로 발행합니다. 별도 Flink job이 주문 이벤트를 소비해 상태별 주문 수, 오늘 매출, 최근 이벤트 피드를 Redis 집계 키로 갱신합니다.
 
 이 프로젝트는 Redis, Kafka, Flink가 다음 책임을 나눕니다.
 
 - Redis: 트래픽이 몰리는 발급 순간에 빠르게 남은 수량을 차감하고 중복 요청을 1차로 차단합니다.
-- Redis: 쿠폰 메타데이터, 발급 이력, 남은 수량, 집계 현황을 저장합니다.
-- Kafka: 발급 성공 이벤트를 비동기로 전달합니다.
+- Redis: 쿠폰 메타데이터, 발급 이력, 남은 수량, 주문 원본, 이벤트 로그, 집계 현황을 저장합니다.
+- Kafka: 쿠폰 발급 성공 이벤트와 주문 라이프사이클 이벤트를 비동기로 전달합니다.
 - Flink: Kafka 이벤트를 스트림으로 처리해 Redis 집계 키를 갱신합니다.
 
 ## 기술 스택
@@ -38,6 +40,9 @@ Spring Boot, Gradle, Redis, Kafka, Apache Flink를 사용한 쿠폰 발급 프�
 - 쿠폰 발급 성공 이벤트 Kafka 발행
 - Flink Kafka source를 통한 쿠폰별 발급 집계
 - Redis 기반 쿠폰별 집계 현황 조회
+- 주문 생성, 조회, 상태 변경
+- 주문 생성/상태 변경 이벤트 Kafka 발행
+- Flink Kafka source를 통한 주문 상태별 수량, 오늘 매출, 최근 이벤트 집계
 
 ## 프로젝트 구조
 
@@ -86,6 +91,8 @@ src/main/java/com/example/couponpublish
         ├── CouponRedisInitializer.java
         └── CouponService.java
 ```
+
+주문 관리는 `order` 패키지 아래에 controller, dto, entity, repository, service를 두고, Kafka publisher는 `order.event`, Flink 집계 job과 Redis sink는 `order.flink`에 둡니다.
 
 ## 동시성 처리 방식
 
@@ -188,7 +195,11 @@ http://localhost:8080
 
 ## Flink 집계 Job 실행
 
-쿠폰 발급 집계가 필요하면 API 서버와 별도로 Flink job을 실행합니다.
+쿠폰 발급 집계와 주문 관리 집계가 필요하면 API 서버와 별도로 Flink job을 실행합니다.
+
+현재 쿠폰과 주문은 토픽, 이벤트 스키마, 집계 로직이 달라서 Flink job을 따로 실행합니다.
+
+### 쿠폰 발급 집계
 
 macOS/Linux:
 
@@ -215,6 +226,35 @@ Redis: localhost:6379
 
 ```powershell
 .\gradlew.bat -Dcoupon.flink.kafka.bootstrap-servers=localhost:9092 -Dcoupon.flink.redis.host=localhost -Dcoupon.flink.redis.port=6379 runCouponStatisticsFlinkJob
+```
+
+### 주문 관리 집계
+
+macOS/Linux:
+
+```bash
+./gradlew runOrderStatisticsFlinkJob
+```
+
+Windows PowerShell:
+
+```powershell
+.\gradlew.bat runOrderStatisticsFlinkJob
+```
+
+로컬 기본값은 다음과 같습니다.
+
+```text
+Kafka bootstrap servers: localhost:9092
+Kafka topic: order-events
+Flink consumer group: order-flink-statistics
+Redis: localhost:6379
+```
+
+다른 주소를 쓰려면 system property로 넘길 수 있습니다.
+
+```powershell
+.\gradlew.bat -Dorder.flink.kafka.bootstrap-servers=localhost:9092 -Dorder.flink.redis.host=localhost -Dorder.flink.redis.port=6379 runOrderStatisticsFlinkJob
 ```
 
 Kafka topic과 메시지는 Kafka UI에서 확인할 수 있습니다.
@@ -247,9 +287,17 @@ coupon:
     enabled: true
     topics:
       coupon-issued: coupon-issued
+
+order:
+  kafka:
+    enabled: true
+    topics:
+      events: order-events
 ```
 
 `coupon.kafka.enabled=false`로 설정하면 Kafka producer bean 대신 no-op publisher를 사용합니다. 테스트에서는 Kafka 없이 실행되도록 이 값을 `false`로 둡니다.
+
+`order.kafka.enabled=false`로 설정하면 주문 이벤트도 Kafka producer bean 대신 no-op publisher를 사용합니다.
 
 ## Kafka 이벤트
 
@@ -265,10 +313,32 @@ coupon:
 }
 ```
 
+주문 생성 또는 상태 변경 시 `order-events` topic으로 다음 형태의 이벤트를 발행합니다.
+
+```json
+{
+  "eventId": 1,
+  "orderId": "ORD-0001",
+  "type": "CREATED",
+  "message": "ORD-0001 주문이 접수되었습니다.",
+  "previousStatus": null,
+  "status": "PAYMENT_CONFIRMED",
+  "paymentMethod": "EASY_PAY",
+  "amount": 45000,
+  "occurredAt": "2026-05-20T11:10:00"
+}
+```
+
 로컬에서 topic 메시지를 직접 확인하려면 Kafka 컨테이너가 실행 중인 상태에서 다음 명령을 사용할 수 있습니다.
 
 ```bash
 docker exec -it coupon-kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic coupon-issued --from-beginning
+```
+
+주문 이벤트는 다음 명령으로 확인할 수 있습니다.
+
+```bash
+docker exec -it coupon-kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic order-events --from-beginning
 ```
 
 ## API
@@ -482,9 +552,136 @@ DELETE /api/coupons/1/issues/user-1
 }
 ```
 
+## 실시간 주문관리 API
+
+프론트 `실시간 주문 관리` 화면에서 필요한 기본 API입니다.
+
+### 주문 생성
+
+```http
+POST /api/orders
+```
+
+요청 예시:
+
+```json
+{
+  "customerName": "김민준",
+  "productName": "스타벅스 아메리카노 쿠폰 10매",
+  "paymentMethod": "EASY_PAY",
+  "amount": 45000,
+  "couponCode": "WELCOME-15",
+  "address": "서울 강남구"
+}
+```
+
+응답 예시:
+
+```json
+{
+  "orderId": "ORD-0001",
+  "customerName": "김민준",
+  "productName": "스타벅스 아메리카노 쿠폰 10매",
+  "status": "PAYMENT_CONFIRMED",
+  "paymentMethod": "EASY_PAY",
+  "amount": 45000,
+  "couponCode": "WELCOME-15",
+  "address": "서울 강남구",
+  "risk": "NORMAL",
+  "createdAt": "2026-05-20T11:10:00",
+  "updatedAt": "2026-05-20T11:10:00"
+}
+```
+
+### 주문 목록 조회
+
+```http
+GET /api/orders?status=PAYMENT_CONFIRMED&query=김민준&page=0&size=20
+```
+
+`status`와 `query`는 선택 값입니다. 최신 주문이 먼저 반환됩니다.
+
+### 주문 상세 조회
+
+```http
+GET /api/orders/ORD-0001
+```
+
+### 주문 상태 변경
+
+```http
+PATCH /api/orders/ORD-0001/status
+```
+
+요청 예시:
+
+```json
+{
+  "status": "PREPARING"
+}
+```
+
+사용 가능한 주문 상태:
+
+- `PAYMENT_CONFIRMED`: 결제 확인
+- `PREPARING`: 상품 준비
+- `SHIPPING`: 배송중
+- `COMPLETED`: 완료
+- `ON_HOLD`: 보류
+
+사용 가능한 결제 수단:
+
+- `CARD`: 카드
+- `EASY_PAY`: 간편결제
+- `BANK_TRANSFER`: 계좌이체
+
+### 주문 요약 지표 조회
+
+Flink가 `order-events` topic을 처리해 Redis `order:statistics:summary`에 반영한 집계입니다. 주문 Flink job이 아직 실행되지 않았거나 집계 키가 없으면 API 서버가 Redis 주문 원본을 기준으로 계산해 응답합니다.
+
+```http
+GET /api/orders/summary
+```
+
+응답 예시:
+
+```json
+{
+  "activeOrderCount": 3,
+  "paymentConfirmedCount": 1,
+  "preparingCount": 1,
+  "shippingCount": 1,
+  "completedCount": 2,
+  "onHoldCount": 0,
+  "todayRevenue": 153000
+}
+```
+
+### 실시간 주문 이벤트 조회
+
+Flink가 Redis `order:statistics:recent-events`에 반영한 최근 이벤트 피드입니다. 주문 Flink job이 아직 실행되지 않았거나 집계 이벤트가 없으면 API 서버가 Redis `order:events`에 저장한 이벤트 로그를 기준으로 응답합니다.
+
+```http
+GET /api/orders/events?limit=20
+```
+
+응답 예시:
+
+```json
+[
+  {
+    "eventId": 2,
+    "orderId": "ORD-0001",
+    "type": "STATUS_CHANGED",
+    "message": "ORD-0001 상태가 PAYMENT_CONFIRMED에서 PREPARING로 변경되었습니다.",
+    "occurredAt": "2026-05-20T11:12:00"
+  }
+]
+```
+
 ## 에러 응답
 
-이미 발급된 사용자, 쿠폰 소진, 존재하지 않는 발급 내역 등은 다음 형태로 응답합니다.
+이미 발급된 사용자, 쿠폰 소진, 존재하지 않는 발급 내역, 존재하지 않는 주문 등은 다음 형태로 응답합니다.
 
 ```json
 {
@@ -496,7 +693,7 @@ DELETE /api/coupons/1/issues/user-1
 주요 상태 코드:
 
 - `400 Bad Request`: 요청 값 검증 실패
-- `404 Not Found`: 쿠폰 또는 발급 내역 없음
+- `404 Not Found`: 쿠폰, 발급 내역 또는 주문 없음
 - `409 Conflict`: 중복 발급, 쿠폰 소진, 발급 기간 아님, 이미 취소된 쿠폰
 
 ## 테스트

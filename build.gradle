@@ -55,3 +55,13 @@ tasks.register('runCouponStatisticsFlinkJob', JavaExec) {
 		key.toString().startsWith('coupon.flink.')
 	}
 }
+
+tasks.register('runOrderStatisticsFlinkJob', JavaExec) {
+	group = 'application'
+	description = 'Runs the order-events Kafka to Redis statistics Flink job.'
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'com.example.couponpublish.order.flink.OrderStatisticsFlinkJob'
+	systemProperties System.getProperties().findAll { key, value ->
+		key.toString().startsWith('order.flink.')
+	}
+}

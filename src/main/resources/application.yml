@@ -18,10 +18,16 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: com.example.couponpublish.coupon.event
+        spring.json.trusted.packages: com.example.couponpublish.coupon.event,com.example.couponpublish.order.event
 
 coupon:
   kafka:
     enabled: true
     topics:
       coupon-issued: coupon-issued
+
+order:
+  kafka:
+    enabled: true
+    topics:
+      events: order-events
