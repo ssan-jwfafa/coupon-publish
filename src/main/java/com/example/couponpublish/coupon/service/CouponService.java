@@ -86,22 +86,28 @@ public class CouponService {
             throw new CouponException(HttpStatus.CONFLICT, "쿠폰이 모두 소진되었습니다.");
         }
 
+        CouponIssue previousIssue = couponIssueRepository.findByCouponIdAndUserIdForUpdate(coupon.getId(), userId)
+            .map(issue -> issue.withId(issue.getId()))
+            .orElse(null);
+
         try {
-            CouponIssue couponIssue = couponIssueRepository.findByCouponIdAndUserIdForUpdate(coupon.getId(), userId)
-                .map(existing -> {
-                    if (existing.getStatus() == CouponStatus.ISSUED) {
-                        throw new CouponException(HttpStatus.CONFLICT, "이미 발급된 사용자입니다.");
-                    }
-                    existing.reissue();
-                    return existing;
-                })
-                .orElseGet(() -> CouponIssue.issue(coupon, userId));
+            CouponIssue couponIssue;
+            if (previousIssue == null) {
+                couponIssue = CouponIssue.issue(coupon, userId);
+            } else {
+                if (previousIssue.getStatus() == CouponStatus.ISSUED) {
+                    throw new CouponException(HttpStatus.CONFLICT, "이미 발급된 사용자입니다.");
+                }
+                couponIssue = previousIssue.withId(previousIssue.getId());
+                couponIssue.reissue();
+            }
 
             CouponIssue saved = couponIssueRepository.save(couponIssue);
             couponEventPublisher.publishIssued(CouponIssuedEvent.from(saved));
             return CouponIssueResponse.from(saved);
         } catch (RuntimeException ex) {
             couponRedisRepository.rollbackIssue(coupon.getId(), userId);
+            restoreIssue(coupon.getId(), userId, previousIssue);
             if (ex instanceof CouponException couponException) {
                 throw couponException;
             }
@@ -148,6 +154,14 @@ public class CouponService {
     private Coupon getCouponOrThrow(Long couponId) {
         return couponRepository.findById(couponId)
             .orElseThrow(() -> new CouponException(HttpStatus.NOT_FOUND, "쿠폰이 없습니다."));
+    }
+
+    private void restoreIssue(Long couponId, String userId, CouponIssue previousIssue) {
+        if (previousIssue == null) {
+            couponIssueRepository.deleteByCouponIdAndUserId(couponId, userId);
+            return;
+        }
+        couponIssueRepository.save(previousIssue);
     }
 
     private static void validateIssuePeriod(Coupon coupon) {

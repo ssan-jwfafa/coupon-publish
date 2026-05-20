@@ -1,4 +1,17 @@
 services:
+  mysql:
+    image: mysql:8.4
+    container_name: coupon-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: coupon_publish
+      MYSQL_USER: coupon
+      MYSQL_PASSWORD: coupon
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysql-data:/var/lib/mysql
+
   redis:
     image: redis:7.4
     container_name: coupon-redis
@@ -43,3 +56,6 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+
+volumes:
+  mysql-data:

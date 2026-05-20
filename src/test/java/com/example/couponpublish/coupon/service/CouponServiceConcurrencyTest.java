@@ -64,7 +64,13 @@ class CouponServiceConcurrencyTest {
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", redis::getFirstMappedPort);
+        registry.add("spring.datasource.url", () -> "jdbc:h2:mem:coupon_publish;MODE=MySQL;DATABASE_TO_LOWER=TRUE");
+        registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
+        registry.add("spring.datasource.username", () -> "sa");
+        registry.add("spring.datasource.password", () -> "");
         registry.add("coupon.kafka.enabled", () -> false);
+        registry.add("order.kafka.enabled", () -> false);
+        registry.add("outbox.relay.enabled", () -> false);
     }
 
     @BeforeEach

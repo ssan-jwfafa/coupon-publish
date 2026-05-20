@@ -90,6 +90,11 @@ public class CouponIssueRepository {
         redisTemplate.delete(List.of(issueHashKey(couponId), issueIndexKey(couponId)));
     }
 
+    public void deleteByCouponIdAndUserId(Long couponId, String userId) {
+        redisTemplate.opsForHash().delete(issueHashKey(couponId), userId);
+        redisTemplate.opsForZSet().remove(issueIndexKey(couponId), userId);
+    }
+
     private List<CouponIssue> allIssues(Long couponId) {
         return redisTemplate.opsForHash().values(issueHashKey(couponId)).stream()
             .map(value -> read(String.valueOf(value)))

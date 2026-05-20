@@ -5,6 +5,11 @@ spring:
     redis:
       host: localhost
       port: 6379
+  datasource:
+    url: jdbc:mysql://localhost:3306/coupon_publish?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    username: coupon
+    password: coupon
+    driver-class-name: com.mysql.cj.jdbc.Driver
   kafka:
     bootstrap-servers: localhost:9092
     producer:
@@ -31,3 +36,10 @@ order:
     enabled: true
     topics:
       events: order-events
+
+outbox:
+  relay:
+    enabled: true
+    batch-size: 50
+    max-attempts: 10
+    fixed-delay: 1000
