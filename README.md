@@ -2,10 +2,29 @@
 
 Spring Boot, Redis, MySQL, Kafka, Apache Flink를 사용한 쿠폰 발급 및 주문 관리 프로젝트입니다.
 
-이 프로젝트는 두 도메인을 분리해서 다룹니다.
+이 프로젝트는 두 도메인을 분리해서 다룹니다. 쿠폰 발급은 선착순 정합성과 중복 발급 방지에 초점을 두고, 주문 관리는 상태 변경 이벤트를 기반으로 빠른 조회용 집계를 만듭니다.
 
-- 쿠폰 발급: Redis Lua Script로 수량 차감과 중복 발급 방지를 atomic 하게 처리하고, MySQL outbox/Kafka/Flink로 발급 집계를 갱신합니다.
-- 주문 관리: Redis에 주문 원본과 이벤트 로그를 저장하고, MySQL outbox/Kafka/Flink로 주문 상태별 수량, 오늘 매출, 최근 이벤트 피드를 집계합니다.
+## Technologies
+
+![Coupon Publish 기술 스택](docs/image/coupon-publish-tech-stack.svg)
+
+## Coupon Issuance Flow
+
+![쿠폰 발급 Flow](docs/image/coupon-issue-flow.svg)
+
+쿠폰 발급은 Redis Lua Script로 사용자 중복 발급 여부 확인, 남은 수량 확인, 수량 차감, 발급 사용자 등록을 한 번에 처리합니다. 발급 성공 이벤트는 MySQL `outbox_events`에 먼저 저장되고, `OutboxRelay`가 Kafka `coupon-issued` topic으로 발행합니다. `CouponStatisticsFlinkJob`은 Kafka 이벤트를 소비해 Redis 쿠폰 집계 키를 갱신합니다.
+
+## Order Lifecycle Flow
+
+![주문 관리 Flow](docs/image/order-lifecycle-flow.svg)
+
+주문 생성과 상태 변경은 Redis 주문 원본 및 이벤트 로그에 반영됩니다. 주문 이벤트 역시 MySQL outbox를 거쳐 Kafka `order-events` topic으로 발행되고, `OrderStatisticsFlinkJob`이 상태별 주문 수, 오늘 매출, 최근 이벤트 피드를 Redis read model에 반영합니다.
+
+## System Architecture
+
+![System Architecture](docs/image/system-architecture.svg)
+
+API 서버와 Flink job은 별도 프로세스로 실행합니다. API 서버는 요청 처리, Redis 상태 변경, MySQL outbox 저장을 담당하고, outbox relay가 Kafka 발행을 재시도합니다. Flink job은 Kafka topic을 계속 구독하면서 Redis 집계 키만 갱신합니다.
 
 ## 기술 스택
 
@@ -34,7 +53,12 @@ Spring Boot API
   └─ Flink: Kafka 이벤트 소비 후 Redis 집계 키 갱신
 ```
 
-API 서버와 Flink job은 별도 프로세스로 실행합니다. API 서버는 요청 처리와 MySQL outbox 저장을 담당하고, outbox relay가 Kafka 발행을 재시도합니다. Flink job은 Kafka topic을 계속 구독하면서 Redis 집계 키만 갱신합니다.
+핵심 모듈은 `coupon`, `order`, `outbox`, `flink` 역할로 나뉩니다.
+
+- `coupon`: 쿠폰 캠페인, 발급 이력, Redis Lua 기반 선착순 발급 처리
+- `order`: 주문 원본, 주문 이벤트 로그, 주문 요약 및 최근 이벤트 조회
+- `outbox`: 도메인 이벤트를 MySQL outbox에 저장하고 Kafka로 재시도 발행
+- `flink`: Kafka 이벤트를 소비해 Redis 조회용 집계를 갱신
 
 ### 쿠폰 발급 흐름
 

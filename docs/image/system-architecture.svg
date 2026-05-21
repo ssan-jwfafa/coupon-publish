@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">Coupon Publish System Architecture</title>
+  <desc id="desc">coupon, order, outbox, flink 모듈과 Redis, MySQL, Kafka 사이의 시스템 아키텍처</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#334155"/>
+    </marker>
+    <style>
+      .bg{fill:#f8fafc}
+      .title{font:700 34px Arial, sans-serif;fill:#111827}
+      .sub{font:400 16px Arial, sans-serif;fill:#4b5563}
+      .module{font:700 21px Arial, sans-serif;fill:#111827}
+      .label{font:700 16px Arial, sans-serif;fill:#111827}
+      .small{font:400 13px Arial, sans-serif;fill:#4b5563}
+      .boundary{fill:#ffffff;stroke:#94a3b8;stroke-width:1.8;rx:10}
+      .box{fill:#fff;stroke:#cbd5e1;stroke-width:1.5;rx:8}
+      .coupon{fill:#e0f2fe;stroke:#0284c7}
+      .order{fill:#dcfce7;stroke:#16a34a}
+      .outbox{fill:#fee2e2;stroke:#dc2626}
+      .stream{fill:#fef3c7;stroke:#d97706}
+      .flink{fill:#ede9fe;stroke:#7c3aed}
+      .line{stroke:#334155;stroke-width:2;fill:none;marker-end:url(#arrow)}
+      .soft{stroke:#64748b;stroke-width:1.6;fill:none;stroke-dasharray:6 5;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="720"/>
+  <text class="title" x="60" y="62">System Architecture</text>
+  <text class="sub" x="60" y="94">Spring Boot API는 도메인 명령과 outbox 저장을 맡고, Kafka/Flink가 비동기 read model을 갱신합니다.</text>
+
+  <rect class="boundary" x="50" y="135" width="640" height="430"/>
+  <text class="module" x="80" y="174">Spring Boot API Process</text>
+
+  <rect class="box coupon" x="80" y="205" width="250" height="122"/>
+  <text class="label" x="108" y="238">coupon module</text>
+  <text class="small" x="108" y="264">controller, service, repository</text>
+  <text class="small" x="108" y="286">Redis Lua 기반 발급</text>
+  <text class="small" x="108" y="308">CouponIssuedEvent 생성</text>
+
+  <rect class="box order" x="390" y="205" width="250" height="122"/>
+  <text class="label" x="418" y="238">order module</text>
+  <text class="small" x="418" y="264">controller, service, repository</text>
+  <text class="small" x="418" y="286">주문 원본과 이벤트 로그</text>
+  <text class="small" x="418" y="308">OrderLifecycleEvent 생성</text>
+
+  <rect class="box outbox" x="80" y="385" width="250" height="122"/>
+  <text class="label" x="108" y="418">outbox module</text>
+  <text class="small" x="108" y="444">OutboxEventPublisher</text>
+  <text class="small" x="108" y="466">outbox_events 저장</text>
+  <text class="small" x="108" y="488">재시도 가능한 이벤트 기준점</text>
+
+  <rect class="box outbox" x="390" y="385" width="250" height="122"/>
+  <text class="label" x="418" y="418">OutboxRelay</text>
+  <text class="small" x="418" y="444">@Scheduled relay</text>
+  <text class="small" x="418" y="466">KafkaTemplate 발행</text>
+  <text class="small" x="418" y="488">PUBLISHED / FAILED 기록</text>
+
+  <path class="line" d="M205 327 V385"/>
+  <path class="line" d="M515 327 V385"/>
+  <path class="line" d="M330 446 H390"/>
+
+  <rect class="boundary" x="750" y="135" width="390" height="430"/>
+  <text class="module" x="780" y="174">Streaming Workers</text>
+
+  <rect class="box stream" x="790" y="215" width="310" height="92"/>
+  <text class="label" x="818" y="250">Kafka</text>
+  <text class="small" x="818" y="276">coupon-issued, order-events</text>
+
+  <rect class="box flink" x="790" y="365" width="310" height="122"/>
+  <text class="label" x="818" y="400">flink module</text>
+  <text class="small" x="818" y="426">CouponStatisticsFlinkJob</text>
+  <text class="small" x="818" y="448">OrderStatisticsFlinkJob</text>
+  <text class="small" x="818" y="470">Redis sink로 집계 갱신</text>
+
+  <path class="line" d="M640 446 H720 V261 H790"/>
+  <path class="line" d="M945 307 V365"/>
+
+  <rect class="box" x="90" y="610" width="250" height="74"/>
+  <text class="label" x="118" y="642">MySQL</text>
+  <text class="small" x="118" y="664">coupon_issue, outbox_events</text>
+
+  <rect class="box" x="475" y="610" width="250" height="74"/>
+  <text class="label" x="503" y="642">Redis</text>
+  <text class="small" x="503" y="664">coupon/order state, read model</text>
+
+  <rect class="box" x="860" y="610" width="250" height="74"/>
+  <text class="label" x="888" y="642">Admin UI</text>
+  <text class="small" x="888" y="664">Kafka UI :8081, Redis UI :8082</text>
+
+  <path class="soft" d="M205 507 V610"/>
+  <path class="soft" d="M515 507 V580 H600 V610"/>
+  <path class="soft" d="M945 487 V580 H600 V610"/>
+  <path class="soft" d="M945 307 V590 H985 V610"/>
+</svg>

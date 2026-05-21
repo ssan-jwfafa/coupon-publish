@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
+  <title id="title">Coupon Issue Flow</title>
+  <desc id="desc">쿠폰 발급 요청부터 Redis Lua, MySQL outbox, Kafka, Flink, Redis 집계까지의 흐름</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#374151"/>
+    </marker>
+    <style>
+      .bg{fill:#f8fafc}
+      .title{font:700 34px Arial, sans-serif;fill:#111827}
+      .sub{font:400 16px Arial, sans-serif;fill:#4b5563}
+      .step{font:700 18px Arial, sans-serif;fill:#111827}
+      .small{font:400 13px Arial, sans-serif;fill:#4b5563}
+      .lane{font:700 16px Arial, sans-serif;fill:#334155}
+      .box{fill:#fff;stroke:#cbd5e1;stroke-width:1.5;rx:8}
+      .api{fill:#e0f2fe;stroke:#0284c7}
+      .redis{fill:#dcfce7;stroke:#16a34a}
+      .mysql{fill:#fee2e2;stroke:#dc2626}
+      .kafka{fill:#fef3c7;stroke:#d97706}
+      .flink{fill:#ede9fe;stroke:#7c3aed}
+      .line{stroke:#374151;stroke-width:2.2;fill:none;marker-end:url(#arrow)}
+      .dash{stroke:#64748b;stroke-width:1.6;fill:none;stroke-dasharray:6 5;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="650"/>
+  <text class="title" x="60" y="62">쿠폰 발급 Flow</text>
+  <text class="sub" x="60" y="94">Redis Lua로 선착순 정합성을 먼저 확보하고, outbox/Kafka/Flink로 발급 집계를 비동기 갱신합니다.</text>
+
+  <text class="lane" x="70" y="150">Request Path</text>
+  <rect class="box api" x="60" y="170" width="180" height="90"/>
+  <text class="step" x="86" y="207">Client</text>
+  <text class="small" x="86" y="232">POST /api/coupons/{id}/issues</text>
+
+  <rect class="box api" x="290" y="170" width="210" height="90"/>
+  <text class="step" x="318" y="207">CouponController</text>
+  <text class="small" x="318" y="232">요청 검증, userId 전달</text>
+
+  <rect class="box api" x="550" y="170" width="210" height="90"/>
+  <text class="step" x="578" y="207">CouponService</text>
+  <text class="small" x="578" y="232">기간 검증, 저장 조율</text>
+
+  <rect class="box redis" x="810" y="150" width="270" height="130"/>
+  <text class="step" x="838" y="192">Redis Lua Script</text>
+  <text class="small" x="838" y="218">SISMEMBER 중복 확인</text>
+  <text class="small" x="838" y="240">remaining 확인 및 DECR</text>
+  <text class="small" x="838" y="262">issued-users SADD</text>
+
+  <path class="line" d="M240 215 H290"/>
+  <path class="line" d="M500 215 H550"/>
+  <path class="line" d="M760 215 H810"/>
+
+  <text class="lane" x="70" y="350">Event Path</text>
+  <rect class="box redis" x="60" y="372" width="210" height="110"/>
+  <text class="step" x="88" y="410">Redis State</text>
+  <text class="small" x="88" y="436">coupon:{id}:remaining</text>
+  <text class="small" x="88" y="458">coupon:{id}:issued-users</text>
+
+  <rect class="box mysql" x="320" y="372" width="210" height="110"/>
+  <text class="step" x="348" y="410">MySQL</text>
+  <text class="small" x="348" y="436">coupon_issue 저장</text>
+  <text class="small" x="348" y="458">outbox_events 저장</text>
+
+  <rect class="box api" x="580" y="372" width="180" height="110"/>
+  <text class="step" x="608" y="410">OutboxRelay</text>
+  <text class="small" x="608" y="436">batch publish</text>
+  <text class="small" x="608" y="458">실패 시 재시도</text>
+
+  <rect class="box kafka" x="810" y="372" width="150" height="110"/>
+  <text class="step" x="838" y="410">Kafka</text>
+  <text class="small" x="838" y="436">coupon-issued</text>
+
+  <rect class="box flink" x="1010" y="372" width="150" height="110"/>
+  <text class="step" x="1038" y="410">Flink</text>
+  <text class="small" x="1038" y="436">CouponStatistics</text>
+
+  <rect class="box redis" x="840" y="535" width="260" height="80"/>
+  <text class="step" x="868" y="570">Redis Statistics</text>
+  <text class="small" x="868" y="594">coupon:{id}:statistics</text>
+
+  <path class="dash" d="M945 280 V330 H165 V372"/>
+  <path class="line" d="M270 427 H320"/>
+  <path class="line" d="M530 427 H580"/>
+  <path class="line" d="M760 427 H810"/>
+  <path class="line" d="M960 427 H1010"/>
+  <path class="line" d="M1085 482 V535"/>
+</svg>

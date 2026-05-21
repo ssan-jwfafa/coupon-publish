@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
+  <title id="title">Coupon Publish Technology Stack</title>
+  <desc id="desc">Spring Boot, Redis, MySQL, Kafka, Apache Flink, Docker Compose로 구성된 기술 스택</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#1f2937" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .bg{fill:#f8fafc}
+      .title{font:700 34px Arial, sans-serif;fill:#111827}
+      .sub{font:400 17px Arial, sans-serif;fill:#4b5563}
+      .group{font:700 18px Arial, sans-serif;fill:#111827}
+      .label{font:700 21px Arial, sans-serif;fill:#111827}
+      .meta{font:400 14px Arial, sans-serif;fill:#4b5563}
+      .card{fill:#fff;stroke:#d1d5db;stroke-width:1.5;rx:8;filter:url(#shadow)}
+      .app{fill:#e0f2fe;stroke:#0284c7}
+      .data{fill:#dcfce7;stroke:#16a34a}
+      .stream{fill:#fef3c7;stroke:#d97706}
+      .ops{fill:#f3e8ff;stroke:#9333ea}
+      .test{fill:#ffe4e6;stroke:#e11d48}
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="560"/>
+  <text class="title" x="60" y="70">Coupon Publish 기술 스택</text>
+  <text class="sub" x="60" y="102">API 요청 처리, 이벤트 발행 안정성, 스트림 집계, 로컬 인프라를 분리한 Spring Boot 기반 프로젝트</text>
+
+  <text class="group" x="80" y="162">Application</text>
+  <rect class="card app" x="60" y="185" width="240" height="105"/>
+  <text class="label" x="85" y="229">Java 21</text>
+  <text class="meta" x="85" y="257">Gradle toolchain</text>
+  <rect class="card app" x="330" y="185" width="240" height="105"/>
+  <text class="label" x="355" y="229">Spring Boot 3.5.6</text>
+  <text class="meta" x="355" y="257">Web, Validation, Scheduling</text>
+  <rect class="card app" x="600" y="185" width="240" height="105"/>
+  <text class="label" x="625" y="229">Spring Data</text>
+  <text class="meta" x="625" y="257">Redis, JDBC, Kafka</text>
+
+  <text class="group" x="80" y="345">Storage</text>
+  <rect class="card data" x="60" y="368" width="240" height="105"/>
+  <text class="label" x="85" y="412">Redis 7.4</text>
+  <text class="meta" x="85" y="440">원본, 발급 상태, 조회 집계</text>
+  <rect class="card data" x="330" y="368" width="240" height="105"/>
+  <text class="label" x="355" y="412">MySQL 8.4</text>
+  <text class="meta" x="355" y="440">outbox_events, 발급 이력</text>
+
+  <text class="group" x="650" y="345">Streaming</text>
+  <rect class="card stream" x="630" y="368" width="240" height="105"/>
+  <text class="label" x="655" y="412">Kafka 3.8.1</text>
+  <text class="meta" x="655" y="440">coupon-issued, order-events</text>
+  <rect class="card stream" x="900" y="368" width="240" height="105"/>
+  <text class="label" x="925" y="412">Apache Flink 1.20</text>
+  <text class="meta" x="925" y="440">Kafka to Redis statistics</text>
+
+  <rect class="card ops" x="870" y="185" width="270" height="105"/>
+  <text class="label" x="895" y="229">Docker Compose</text>
+  <text class="meta" x="895" y="257">MySQL, Redis, Kafka, UI</text>
+  <rect class="card test" x="60" y="495" width="1080" height="44"/>
+  <text class="meta" x="84" y="523">Tests: JUnit 5, Spring Boot Test, Spring Kafka Test, Testcontainers, H2</text>
+</svg>
