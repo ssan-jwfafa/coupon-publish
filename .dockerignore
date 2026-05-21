@@ -1,0 +1,10 @@
+.git
+.gradle
+build
+bin
+.vscode
+docs
+postman
+*.iml
+Dockerfile
+docker-compose.yml

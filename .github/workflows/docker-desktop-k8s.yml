@@ -1,0 +1,42 @@
+name: Docker Desktop Kubernetes Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy-local-k8s:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Docker Desktop Kubernetes
+        shell: powershell
+        run: |
+          kubectl config use-context docker-desktop
+          kubectl config current-context
+
+      - name: Build local Docker image
+        shell: powershell
+        run: docker build -t coupon-publish:local .
+
+      - name: Deploy manifests
+        shell: powershell
+        run: kubectl apply -k k8s
+
+      - name: Restart application workloads
+        shell: powershell
+        run: |
+          kubectl -n coupon-publish rollout restart deploy/coupon-publish-api deploy/coupon-statistics-flink deploy/order-statistics-flink
+          kubectl -n coupon-publish rollout status deploy/coupon-publish-api --timeout=180s
+          kubectl -n coupon-publish rollout status deploy/coupon-statistics-flink --timeout=180s
+          kubectl -n coupon-publish rollout status deploy/order-statistics-flink --timeout=180s
+
+      - name: Show pods
+        shell: powershell
+        run: kubectl -n coupon-publish get pods -o wide
