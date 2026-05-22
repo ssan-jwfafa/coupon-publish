@@ -53,7 +53,7 @@ API 서버와 Flink job은 별도 프로세스로 실행합니다. API는 요청
 ## Project Structure
 
 ```text
-src/main/java/com/example/couponpublish
+src/main/java/com/couponpublish
 ├── coupon
 │   ├── controller
 │   ├── service

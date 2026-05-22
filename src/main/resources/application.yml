@@ -23,7 +23,7 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: com.example.couponpublish.coupon.event,com.example.couponpublish.order.event
+        spring.json.trusted.packages: com.couponpublish.coupon.event,com.couponpublish.order.event
 
 coupon:
   kafka:
