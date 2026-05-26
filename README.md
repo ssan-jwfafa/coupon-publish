@@ -109,45 +109,11 @@ Redis UI: http://localhost:8082
 docker compose down
 ```
 
-## Docker Desktop Kubernetes
-
-Docker Compose 대신 Docker Desktop Kubernetes로도 실행할 수 있습니다.
-
-```powershell
-kubectl config use-context docker-desktop
-docker compose down
-
-docker build -t coupon-publish:local .
-kubectl apply -k k8s
-
-kubectl -n coupon-publish get pods -w
-```
-
-`get pods -w`는 상태 감시 명령이라 자동으로 끝나지 않습니다. Pod들이 `Running`이 되면 `Ctrl + C`로 종료하면 됩니다.
-
-코드 변경 후 재배포:
-
-```powershell
-docker build -t coupon-publish:local .
-kubectl -n coupon-publish rollout restart deploy/coupon-publish-api deploy/coupon-statistics-flink deploy/order-statistics-flink
-```
-
-삭제:
-
-```powershell
-kubectl delete -k k8s
-```
-
-Docker Desktop Kubernetes가 `kind` 방식이면 로컬 이미지가 노드에서 보이지 않아 `ErrImageNeverPull`이 발생할 수 있습니다. 로컬 개발에서는 `kubeadm` 방식으로 클러스터를 만들거나, 이미지를 registry에 push한 뒤 매니페스트의 image 값을 registry 주소로 변경합니다.
-
 ## GitHub Actions
 
-Workflow는 두 개입니다.
+Workflow는 하나입니다.
 
 - `.github/workflows/build-and-push-ghcr.yml`: 테스트 후 GHCR 이미지 빌드/푸시
-- `.github/workflows/docker-desktop-k8s.yml`: self-hosted runner에서 Docker Desktop Kubernetes 배포
-
-Docker Desktop Kubernetes는 로컬 PC 안에 있으므로 GitHub-hosted runner가 직접 접근할 수 없습니다. push만으로 로컬 클러스터에 배포하려면 GitHub repository의 `Settings > Actions > Runners`에서 Windows self-hosted runner를 설치하고 실행해야 합니다.
 
 ## 주요 API
 
@@ -191,8 +157,6 @@ Coupon topic: coupon-issued
 Order topic: order-events
 Outbox relay: enabled
 ```
-
-Kubernetes에서는 매니페스트의 환경 변수로 `redis`, `mysql`, `kafka` 서비스 주소를 주입합니다.
 
 ## Test
 

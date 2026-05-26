@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 import com.couponpublish.coupon.entity.Coupon;
 import com.couponpublish.coupon.entity.CouponIssue;
 import com.couponpublish.coupon.event.CouponEventPublisher;
-import com.couponpublish.coupon.exception.CouponException;
 import com.couponpublish.coupon.repository.CouponIssueRepository;
 import com.couponpublish.coupon.repository.CouponIssueStatisticsRepository;
 import com.couponpublish.coupon.repository.CouponRedisRepository;
