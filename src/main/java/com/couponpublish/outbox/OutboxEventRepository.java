@@ -1,41 +1,20 @@
 package com.couponpublish.outbox;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
 import java.util.List;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public class OutboxEventRepository {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final OutboxEventJpaRepository jpaRepository;
 
-    public OutboxEventRepository(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public OutboxEventRepository(OutboxEventJpaRepository jpaRepository) {
+        this.jpaRepository = jpaRepository;
     }
 
-    public void initializeSchema() {
-        jdbcTemplate.execute("""
-            CREATE TABLE IF NOT EXISTS outbox_events (
-                id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                aggregate_type VARCHAR(100) NOT NULL,
-                aggregate_id VARCHAR(100) NOT NULL,
-                event_type VARCHAR(100) NOT NULL,
-                topic VARCHAR(200) NOT NULL,
-                event_key VARCHAR(200) NOT NULL,
-                payload TEXT NOT NULL,
-                status VARCHAR(30) NOT NULL,
-                attempts INT NOT NULL,
-                created_at TIMESTAMP NOT NULL,
-                published_at TIMESTAMP NULL,
-                last_error TEXT NULL
-            )
-            """);
-    }
-
+    @Transactional
     public void save(
         String aggregateType,
         String aggregateId,
@@ -44,83 +23,34 @@ public class OutboxEventRepository {
         String eventKey,
         String payload
     ) {
-        jdbcTemplate.update("""
-                INSERT INTO outbox_events (
-                    aggregate_type, aggregate_id, event_type, topic, event_key,
-                    payload, status, attempts, created_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 0, ?)
-                """,
+        jpaRepository.save(OutboxEvent.pending(
             aggregateType,
             aggregateId,
             eventType,
             topic,
             eventKey,
-            payload,
-            Timestamp.valueOf(LocalDateTime.now())
-        );
+            payload
+        ));
     }
 
+    @Transactional(readOnly = true)
     public List<OutboxEvent> findPublishable(int limit, int maxAttempts) {
-        return jdbcTemplate.query("""
-                SELECT *
-                FROM outbox_events
-                WHERE status IN ('PENDING', 'FAILED')
-                  AND attempts < ?
-                ORDER BY id
-                LIMIT ?
-                """,
-            this::map,
+        return jpaRepository.findByStatusInAndAttemptsLessThanOrderByIdAsc(
+            List.of(OutboxEventStatus.PENDING, OutboxEventStatus.FAILED),
             maxAttempts,
-            limit
+            PageRequest.of(0, limit)
         );
     }
 
+    @Transactional
     public void markPublished(Long id) {
-        jdbcTemplate.update("""
-                UPDATE outbox_events
-                SET status = 'PUBLISHED',
-                    published_at = ?,
-                    last_error = NULL
-                WHERE id = ?
-                """,
-            Timestamp.valueOf(LocalDateTime.now()),
-            id
-        );
+        jpaRepository.findById(id).ifPresent(OutboxEvent::markPublished);
     }
 
+    @Transactional
     public void markFailed(Long id, String errorMessage) {
-        jdbcTemplate.update("""
-                UPDATE outbox_events
-                SET status = 'FAILED',
-                    attempts = attempts + 1,
-                    last_error = ?
-                WHERE id = ?
-                """,
-            truncate(errorMessage),
-            id
-        );
-    }
-
-    private OutboxEvent map(ResultSet resultSet, int rowNumber) throws SQLException {
-        return new OutboxEvent(
-            resultSet.getLong("id"),
-            resultSet.getString("aggregate_type"),
-            resultSet.getString("aggregate_id"),
-            resultSet.getString("event_type"),
-            resultSet.getString("topic"),
-            resultSet.getString("event_key"),
-            resultSet.getString("payload"),
-            resultSet.getString("status"),
-            resultSet.getInt("attempts"),
-            resultSet.getTimestamp("created_at").toLocalDateTime(),
-            nullableDateTime(resultSet.getTimestamp("published_at")),
-            resultSet.getString("last_error")
-        );
-    }
-
-    private static LocalDateTime nullableDateTime(Timestamp timestamp) {
-        return timestamp == null ? null : timestamp.toLocalDateTime();
+        jpaRepository.findById(id)
+            .ifPresent(event -> event.markFailed(truncate(errorMessage)));
     }
 
     private static String truncate(String value) {
